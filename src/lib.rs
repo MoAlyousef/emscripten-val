@@ -55,6 +55,9 @@ macro_rules! process_arg_types {
     () => {
         vec![]
     };
+    ($x:expr) => {{
+        vec![get_argument_type(&$x)]
+    }};
     ($x:expr, $($rest:tt)*) => {{
         let mut v = vec![get_argument_type(&$x)];
         v.extend_from_slice(&process_arg_types!($($rest)*));
@@ -67,6 +70,10 @@ macro_rules! process_arguments {
     () => {
         Vec::<*const std::os::raw::c_void>::new()
     };
+    ($x:expr) => {{
+        let mut v: Vec<*const std::os::raw::c_void> = vec![std::mem::transmute($x)];
+        v
+    }};
     ($x:expr, $($rest:tt)*) => {{
         let mut v: Vec<*const std::os::raw::c_void> = vec![std::mem::transmute($x)];
         v.extend_from_slice(&process_arguments!($($rest)*));
@@ -114,14 +121,28 @@ impl Val {
     }
 
     pub fn take_ownership(v: EM_VAL) -> Self {
-        Self {
-            handle: v,
-        }
+        Self { handle: v }
+    }
+
+    pub fn from_val(v: Val) -> Self {
+        Self { handle: v.handle }
     }
 
     pub fn undefined() -> Self {
         Self {
             handle: _EMVAL_UNDEFINED as EM_VAL,
+        }
+    }
+
+    pub fn object() -> Self {
+        Self {
+            handle: unsafe { _emval_new_object() },
+        }
+    }
+
+    pub fn null() -> Self {
+        Self {
+            handle: _EMVAL_NULL as EM_VAL,
         }
     }
 
@@ -134,7 +155,14 @@ impl Val {
     pub fn from_str(s: &str) -> Self {
         let s = CString::new(s).unwrap();
         Self {
-            handle: unsafe { _emval_new_u8string(s.as_ptr() as _) }
+            handle: unsafe { _emval_new_cstring(s.as_ptr() as _) },
+        }
+    }
+
+    pub fn module_property(s: &str) -> Self {
+        let s = CString::new(s).unwrap();
+        Self {
+            handle: unsafe { _emval_get_module_property(s.as_ptr() as _) },
         }
     }
 
@@ -143,7 +171,9 @@ impl Val {
         for elem in arr {
             let x: f64 = elem.clone().into();
             let x = x as f32;
-            unsafe { v.call("push", gen_args![x,]); }
+            unsafe {
+                v.call("push", gen_args![x,]);
+            }
         }
         v
     }
@@ -151,7 +181,9 @@ impl Val {
     pub fn from_val_array(arr: &[Val]) -> Self {
         let v = Val::array();
         for elem in arr {
-            unsafe { v.call("push", gen_args![elem,]); }
+            unsafe {
+                v.call("push", gen_args![elem,]);
+            }
         }
         v
     }
@@ -181,6 +213,7 @@ impl Val {
     }
 
     pub fn from_i32(i: i32) -> Self {
+        // TODO: check val_ref
         Self {
             handle: unsafe { _emval_take_value(IntType, [i as *const c_void].as_ptr() as _) },
         }
@@ -189,6 +222,53 @@ impl Val {
     pub fn from_u32(i: u32) -> Self {
         Self {
             handle: unsafe { _emval_take_value(IntType, [i as *const c_void].as_ptr() as _) },
+        }
+    }
+
+    pub fn from_f32(i: f32) -> Self {
+        let i: *const c_void = unsafe { std::mem::transmute(i) };
+        Self {
+            handle: unsafe { _emval_take_value(FloatType, [i].as_ptr() as _) },
+        }
+    }
+
+    pub fn from_f64(i: f64) -> Self {
+        let i: *const c_void = unsafe { std::mem::transmute(i as f32) };
+        Self {
+            handle: unsafe { _emval_take_value(FloatType, [i].as_ptr() as _) },
+        }
+    }
+
+    pub fn uses_ref_count(&self) -> bool {
+        let last: EM_VAL = unsafe { std::mem::transmute(_EMVAL_LAST_RESERVED_HANDLE) };
+        self.handle > last
+    }
+
+    pub fn release_ownership(&mut self) -> EM_VAL {
+        let h = self.handle;
+        self.handle = std::ptr::null_mut();
+        h
+    }
+}
+
+impl Drop for Val {
+    fn drop(&mut self) {
+        if self.uses_ref_count() {
+            unsafe {
+                _emval_decref(self.as_handle());
+            }
+            self.handle = std::ptr::null_mut();
+        }
+    }
+}
+
+impl Clone for Val {
+    fn clone(&self) -> Self {
+        if self.uses_ref_count() {
+            unsafe { _emval_incref(self.handle); }
+        }
+        Self {
+            handle: self.handle,
         }
     }
 }
