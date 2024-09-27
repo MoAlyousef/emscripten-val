@@ -1,0 +1,9 @@
+[package]
+name = "emscripten-val"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+emscripten-val-sys = { path = "emscripten-val-sys" }
+
+
