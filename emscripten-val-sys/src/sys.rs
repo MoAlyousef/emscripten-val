@@ -264,6 +264,9 @@ pub struct _EM_VAL {
 pub type EM_VAL = *mut _EM_VAL;
 pub type TYPEID = *const ::std::os::raw::c_void;
 extern "C" {
+    pub static mut BoolType: TYPEID;
+}
+extern "C" {
     pub static mut IntType: TYPEID;
 }
 extern "C" {
@@ -427,4 +430,7 @@ extern "C" {
 }
 extern "C" {
     pub fn _emval_iter_next(iterator: EM_VAL) -> EM_VAL;
+}
+extern "C" {
+    pub fn _emval_as_str(object: EM_VAL) -> *mut ::std::os::raw::c_char;
 }
