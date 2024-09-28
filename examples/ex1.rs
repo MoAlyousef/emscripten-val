@@ -18,9 +18,6 @@ fn main() {
         let bodys = document.call("getElementsByTagName", argv!["body"]);
         let body = bodys.at(0);
         console.call("clear", argv![]);
-        elem.call("addEventListener", argv!["click", Val::from_fn(|v: &Val| {
-            dbg!("Here");
-        })]);
         body.call("appendChild", argv![elem]);
     }
 }

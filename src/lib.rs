@@ -7,20 +7,11 @@ pub mod sys {
 
 use sys::*;
 
-pub type EventListenerCb = Option<unsafe extern "C" fn(EM_VAL, *mut c_void)>;
-
 #[macro_export]
 macro_rules! argv {
     ($($rest:expr),*) => {{
         &[$(Val::from($rest).as_ptr()),*]
     }};
-}
-
-#[no_mangle]
-extern "C" fn rust_caller(val: EM_VAL, data: *mut c_void) {
-    let a: *mut Box<dyn FnMut(&Val)> = data as *mut Box<dyn FnMut(&Val)>;
-    let mut a = unsafe { Box::from_raw(a) };
-    (*a)(&Val::take_ownership(val));
 }
 
 #[repr(C)]
@@ -191,16 +182,6 @@ impl Val {
         let h = self.handle;
         self.handle = std::ptr::null_mut();
         h
-    }
-
-    pub fn from_fn<F: FnMut(&Val) + 'static>(f: F) -> Self {
-        unsafe {
-            let a: *mut Box<dyn FnMut(&Val)> = Box::into_raw(Box::new(Box::new(f)));
-            let data = a as *mut std::os::raw::c_void;
-            Self {
-                handle: _emval_take_fn(data),
-            }
-        }
     }
 }
 
