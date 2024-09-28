@@ -33,7 +33,7 @@ std::function<void(emscripten::val)> *get_std_fn(void *data) {
 
 extern "C" emscripten::EM_VAL _emval_take_fn(void *data) {
     auto f = get_std_fn(data);
-    auto v = emscripten::val(std::move(*f));
+    auto v = func_to_val(std::move(*f));
     // std::function<void(emscripten::val)> vals[] = {*f};
     // return emscripten::internal::_emval_take_value(FuncType, (const void *)vals);
     return v.release_ownership();
