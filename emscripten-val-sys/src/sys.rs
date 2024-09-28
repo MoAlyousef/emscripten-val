@@ -301,6 +301,7 @@ pub struct _EM_METHOD_CALLER {
 pub type EM_METHOD_CALLER = *mut _EM_METHOD_CALLER;
 pub type EM_GENERIC_WIRE_TYPE = f64;
 pub type EM_VAR_ARGS = *const ::std::os::raw::c_void;
+pub type cller = ::std::option::Option<unsafe extern "C" fn(arg1: *mut ::std::os::raw::c_void)>;
 extern "C" {
     pub fn _emval_register_symbol(arg1: *const ::std::os::raw::c_char);
 }
@@ -427,4 +428,7 @@ extern "C" {
 }
 extern "C" {
     pub fn _emval_iter_next(iterator: EM_VAL) -> EM_VAL;
+}
+extern "C" {
+    pub fn _emval_take_fn(data: *mut ::std::os::raw::c_void) -> EM_VAL;
 }

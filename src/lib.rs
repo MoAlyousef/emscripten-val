@@ -7,6 +7,8 @@ pub mod sys {
 
 use sys::*;
 
+pub type EventListenerCb = Option<unsafe extern "C" fn(Val, *mut c_void)>;
+
 fn type_name_of<T: ?Sized>(_: &T) -> &'static str {
     std::any::type_name::<T>()
 }
@@ -18,7 +20,7 @@ fn is_pointer<T>(t: &T) -> bool {
 fn is_integer<T>(t: &T) -> bool {
     matches!(
         type_name_of(t),
-        "char" | "i32" | "i64" | "u32" | "u64" | "i16" | "u16" | "i8" | "u8" | "isize" | "usize"
+        "char" | "i32" | "i64" | "u32" | "u64" | "i16" | "u16" | "i8" | "u8" | "isize" | "usize" | "true" | "false"
     )
 }
 
@@ -44,6 +46,7 @@ pub fn get_argument_type<T>(arg: &T) -> TYPEID {
             if std::any::type_name::<T>() == std::any::type_name::<Val>() {
                 EmvalType
             } else {
+                dbg!(type_name_of(arg));
                 PointerType
             }
         }
@@ -105,6 +108,13 @@ macro_rules! gen_args {
         args.insert(0, $crate::sys::EmvalType);
         (args, argv)
     }}
+}
+
+#[no_mangle]
+extern "C" fn rust_caller(val: EM_VAL, data: *mut c_void) {
+    let a: *mut Box<dyn FnMut(&Val)> = data as *mut Box<dyn FnMut(&Val)>;
+    let mut a = unsafe { Box::from_raw(a) };
+    (*a)(&Val::take_ownership(val));
 }
 
 #[repr(C)]
@@ -212,6 +222,10 @@ impl Val {
         }
     }
 
+    pub fn set(&self, prop: &Val, val: &Val) {
+        unsafe { _emval_set_property(self.handle, prop.handle, val.handle) };
+    }
+
     pub fn from_i32(i: i32) -> Self {
         // TODO: check val_ref
         Self {
@@ -239,6 +253,12 @@ impl Val {
         }
     }
 
+    pub fn from_bool(i: bool) -> Self {
+        Self {
+            handle: if i { _EMVAL_TRUE as EM_VAL } else { _EMVAL_FALSE as EM_VAL },
+        }
+    }
+
     pub fn uses_ref_count(&self) -> bool {
         let last: EM_VAL = unsafe { std::mem::transmute(_EMVAL_LAST_RESERVED_HANDLE) };
         self.handle > last
@@ -248,6 +268,16 @@ impl Val {
         let h = self.handle;
         self.handle = std::ptr::null_mut();
         h
+    }
+
+    pub fn from_fn<F: FnMut(&Val) + 'static>(f: F) -> Self {
+        unsafe {
+            let a: *mut Box<dyn FnMut(&Val)> = Box::into_raw(Box::new(Box::new(f)));
+            let data = a as *mut std::os::raw::c_void;
+            Self {
+                handle: _emval_take_fn(data),
+            }
+        }
     }
 }
 
@@ -270,5 +300,41 @@ impl Clone for Val {
         Self {
             handle: self.handle,
         }
+    }
+}
+
+impl From<i32> for Val {
+    fn from(item: i32) -> Self {
+        Val::from_i32(item)
+    }
+}
+
+impl From<u32> for Val {
+    fn from(item: u32) -> Self {
+        Val::from_u32(item)
+    }
+}
+
+impl From<f32> for Val {
+    fn from(item: f32) -> Self {
+        Val::from_f32(item)
+    }
+}
+
+impl From<f64> for Val {
+    fn from(item: f64) -> Self {
+        Val::from_f64(item)
+    }
+}
+
+impl From<bool> for Val {
+    fn from(item: bool) -> Self {
+        Val::from_bool(item)
+    }
+}
+
+impl From<&str> for Val {
+    fn from(item: &str) -> Self {
+        Val::from_str(item)
     }
 }

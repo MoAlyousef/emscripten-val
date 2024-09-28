@@ -12,6 +12,7 @@ extern TYPEID FloatType;
 extern TYPEID PointerType;
 extern TYPEID VoidType;
 extern TYPEID EmvalType;
+// extern TYPEID FuncType;
 
 enum EM_METHOD_CALLER_KIND {
   FUNCTION = 0,
@@ -34,6 +35,8 @@ typedef const void* EM_VAR_ARGS;
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef void (*cller)(void *);
 
 void _emval_register_symbol(const char*);
 
@@ -98,6 +101,8 @@ EM_VAL _emval_iter_next(EM_VAL iterator);
 void _emval_coro_suspend(EM_VAL promise, void* coro_ptr);
 EM_VAL _emval_coro_make_promise(EM_VAL *resolve, EM_VAL *reject);
 #endif
+
+EM_VAL _emval_take_fn(void *data);
 
 #ifdef __cplusplus
 } // extern "C"

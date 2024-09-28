@@ -13,10 +13,14 @@ fn main() {
 
     let document = Val::global("document");
     unsafe {
-        let elem = document.call("createElement", gen_args![Val::from_str("DIV")]);
-        let bodys = document.call("getElementsByTagName", gen_args![Val::from_str("body")]);
+        let elem = document.call("createElement", gen_args![Val::from("BUTTON")]);
+        elem.set(&Val::from("textContent"), &Val::from("Click"));
+        let bodys = document.call("getElementsByTagName", gen_args![Val::from("body")]);
         let body = bodys.at(0);
-        body.call("appendChild", gen_args![elem]);
-        console.call("clear", gen_args![]);
+        body.call("appendChild", gen_args![elem.clone()]);
+        // console.call("clear", gen_args![]);
+        elem.call("addEventListener", gen_args![Val::from("click"), Val::from_fn(|v: &Val| {
+            dbg!("Here");
+        })]);
     }
 }

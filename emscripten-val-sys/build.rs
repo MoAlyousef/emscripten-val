@@ -2,7 +2,8 @@ fn main() {
     println!("cargo:rerun-if-changed=emval_support/emval.h");
     println!("cargo:rerun-if-changed=emval_support/emval_support.cpp");
     println!("cargo:rerun-if-changed=emval_support/val_support.cpp");
-    let emsdk = std::env::var("EMSDK").unwrap();
+    println!("cargo:rerun-if-changed=emval_support/CMakeLists.txt");
+    let emsdk = std::env::var("EMSDK").expect("EMSDK undefined!");
     let toolchain_file = std::path::PathBuf::from(emsdk)
         .join("upstream")
         .join("emscripten")
