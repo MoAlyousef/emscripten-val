@@ -14,11 +14,11 @@ fn main() {
         let oscillator = context.call("createOscillator", argv![]);
       
         println!("Configuring oscillator");
-        oscillator.set("type", "triangle");
-        oscillator.get("frequency").set("value", 261.63); // Middle C
+        oscillator.set(&"type", &"triangle");
+        oscillator.get(&"frequency").set(&"value", &261.63); // Middle C
       
         println!("Playing");
-        oscillator.call("connect", argv![context.get("destination")]);
+        oscillator.call("connect", argv![context.get(&"destination")]);
         oscillator.call("start", argv![0]);
       
         println!("All done!");

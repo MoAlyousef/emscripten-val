@@ -35,7 +35,7 @@ impl Val {
         Self { handle: v }
     }
 
-    pub fn from_val(v: Val) -> Self {
+    pub fn from_val(v: &Val) -> Self {
         Self { handle: v.handle }
     }
 
@@ -87,16 +87,6 @@ impl Val {
         v
     }
 
-    // pub fn from_val_array(arr: &[Val]) -> Self {
-    //     let v = Val::array();
-    //     for elem in arr {
-    //         unsafe {
-    //             v.call("push", argv![elem.clone()]);
-    //         }
-    //     }
-    //     v
-    // }
-
     pub fn as_handle(&self) -> EM_VAL {
         self.handle
     }
@@ -130,14 +120,14 @@ impl Val {
         Val::take_ownership(ret)
     }
 
-    pub fn get<T: Clone + Into<Val>>(&self, prop: T) -> Val {
+    pub fn get<T: Clone + Into<Val>>(&self, prop: &T) -> Val {
         let prop: Val = prop.clone().into();
         Val {
             handle: unsafe { _emval_get_property(self.handle, prop.handle) },
         }
     }
 
-    pub fn set<T: Clone + Into<Val>, U: Clone + Into<Val>>(&self, prop: T, val: U) {
+    pub fn set<T: Clone + Into<Val>, U: Clone + Into<Val>>(&self, prop: &T, val: &U) {
         let prop: Val = prop.clone().into();
         let val: Val = val.clone().into();
         unsafe { _emval_set_property(self.handle, prop.handle, val.handle) };
@@ -194,8 +184,8 @@ impl Val {
     pub fn has_own_property(&self, key: &str) -> bool {
         unsafe {
             Val::global("Object")
-                .get("prototype")
-                .get("hasOwnProperty")
+                .get(&"prototype")
+                .get(&"hasOwnProperty")
                 .call("call", argv![self.clone(), key])
                 .as_bool()
         }
@@ -299,7 +289,35 @@ impl Val {
         }
     }
 
-    // comparators
+    pub fn gt<T: Clone + Into<Val>>(&self, v: &T) -> bool {
+        unsafe {
+            _emval_greater_than(self.handle, v.clone().into().handle)
+        }
+    }
+
+    pub fn lt<T: Clone + Into<Val>>(&self, v: &T) -> bool {
+        unsafe {
+            _emval_less_than(self.handle, v.clone().into().handle)
+        }
+    }
+
+    pub fn equals<T: Clone + Into<Val>>(&self, v: &T) -> bool {
+        unsafe {
+            _emval_equals(self.handle, v.clone().into().handle)
+        }
+    }
+
+    pub fn strictly_equals<T: Clone + Into<Val>>(&self, v: &T) -> bool {
+        unsafe {
+            _emval_strictly_equals(self.handle, v.clone().into().handle)
+        }
+    }
+
+    pub fn not(&self) -> bool {
+        unsafe {
+            _emval_not(self.handle)
+        }
+    }
 }
 
 impl Drop for Val {
@@ -362,8 +380,3 @@ impl From<&str> for Val {
     }
 }
 
-// impl Into<Val> for i32 {
-//     fn into(self) -> Val {
-//         Val::from(self)
-//     }
-// }

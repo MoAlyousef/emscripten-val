@@ -14,9 +14,9 @@ fn main() {
     let document = Val::global("document");
     unsafe {
         let elem = document.call("createElement", argv!["BUTTON"]);
-        elem.set("textContent", "Click");
+        elem.set(&"textContent", &"Click");
         let bodys = document.call("getElementsByTagName", argv!["body"]);
-        let body = bodys.get(0);
+        let body = bodys.get(&0);
         console.call("clear", argv![]);
         body.call("appendChild", argv![elem]);
     }
