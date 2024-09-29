@@ -8,6 +8,11 @@ pub mod sys {
 
 use sys::*;
 
+extern "C" {
+    pub fn _emval_take_fn(data: *const ()) -> EM_VAL;
+    pub fn _emval_as_str(v: EM_VAL) -> *mut std::os::raw::c_char;
+}
+
 #[macro_export]
 macro_rules! argv {
     ($($rest:expr),*) => {{
@@ -139,6 +144,16 @@ impl Val {
         let prop: Val = prop.clone().into();
         let val: Val = val.clone().into();
         unsafe { _emval_set_property(self.handle, prop.handle, val.handle) };
+    }
+
+    pub fn from_fn<F: FnMut(Val) + 'static>(f: F) -> Val {
+        let handle = unsafe { _emval_take_fn(std::ptr::null_mut()) };
+        unsafe {
+            _emval_incref(handle);
+        }
+        Self {
+            handle,
+        }
     }
 
     pub fn from_i32(i: i32) -> Self {

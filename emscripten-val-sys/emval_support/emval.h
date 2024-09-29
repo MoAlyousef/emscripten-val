@@ -102,8 +102,6 @@ void _emval_coro_suspend(EM_VAL promise, void* coro_ptr);
 EM_VAL _emval_coro_make_promise(EM_VAL *resolve, EM_VAL *reject);
 #endif
 
-char *_emval_as_str(EM_VAL object);
-
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -431,6 +431,3 @@ extern "C" {
 extern "C" {
     pub fn _emval_iter_next(iterator: EM_VAL) -> EM_VAL;
 }
-extern "C" {
-    pub fn _emval_as_str(object: EM_VAL) -> *mut ::std::os::raw::c_char;
-}
