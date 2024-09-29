@@ -1,37 +1,37 @@
-#include <emscripten/val.h>
+#include <emscripten.h>
 #include <emscripten/bind.h>
-#include <string>
+#include <emscripten/val.h>
 #include <string.h>
+#include <string>
 
+using namespace emscripten;
 
-emscripten::internal::TYPEID EmvalType = &typeid(emscripten::val);
+internal::TYPEID EmvalType = &typeid(val);
 
-extern "C" char *_emval_as_str(emscripten::EM_VAL object) {
-    emscripten::internal::_emval_incref(object);
-    auto v = emscripten::val::take_ownership(object);
-    auto s = strdup(v.as<std::string>().c_str());
-    return s;
+extern "C" char *_emval_as_str(EM_VAL object) {
+  internal::_emval_incref(object);
+  auto v = val::take_ownership(object);
+  auto s = strdup(v.as<std::string>().c_str());
+  return s;
 }
 
 EMSCRIPTEN_BINDINGS(MyBindings) {
-    emscripten::class_<std::function<void(emscripten::val)>>("ListenerCallback")
-        .constructor<>()
-        .function("_internal_func_", &std::function<void(emscripten::val)>::operator());
+  class_<std::function<void(val)>>("ListenerCallback")
+      .constructor<>()
+      .function("_internal_func_", &std::function<void(val)>::operator());
 };
 
-static emscripten::val func_to_val(std::function<void(emscripten::val)> &&func) {
-    return emscripten::val(func)["_internal_func_"].call<emscripten::val>(
-        "bind", emscripten::val(func)
-    );
+static val func_to_val(std::function<void(val)> &&func) {
+  return val(func)["_internal_func_"].call<val>("bind", val(func));
 }
 
-extern "C" emscripten::EM_VAL _emval_take_fn(void *data) {
-    puts("H3");
-    auto v = func_to_val(std::function<void(emscripten::val)>([](emscripten::val) {
-        puts("here");
-        // (void)data;
-    }));
-    auto ev = v.release_ownership();
-    emscripten::internal::_emval_incref(ev);
-    return ev;
+extern "C" void rust_caller(EM_VAL em, void *data);
+
+extern "C" void _emval_add_event_listener(EM_VAL em, const char *name,
+                                          void *data) {
+  auto v = val::take_ownership(em);
+  v.call<void>("addEventListener", std::string(name), func_to_val([=](val ev) {
+                 rust_caller(ev.release_ownership(), data);
+               }));
+  v.release_ownership();
 }

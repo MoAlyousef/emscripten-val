@@ -9,8 +9,17 @@ pub mod sys {
 use sys::*;
 
 extern "C" {
-    pub fn _emval_take_fn(data: *const ()) -> EM_VAL;
     pub fn _emval_as_str(v: EM_VAL) -> *mut std::os::raw::c_char;
+    pub fn _emval_add_event_listener(v: EM_VAL, f: *const std::os::raw::c_char, data: *mut ());
+}
+
+#[no_mangle]
+unsafe extern "C" fn rust_caller(em: EM_VAL, data: *const ()) {
+    let mut val = Val::take_ownership(em);
+    let a = data as *mut Box<dyn FnMut(&Val)>;
+    let f: &mut (dyn FnMut(&Val)) = &mut **a;
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(&val)));
+    val.release_ownership();
 }
 
 #[macro_export]
@@ -146,16 +155,6 @@ impl Val {
         unsafe { _emval_set_property(self.handle, prop.handle, val.handle) };
     }
 
-    pub fn from_fn<F: FnMut(Val) + 'static>(f: F) -> Val {
-        let handle = unsafe { _emval_take_fn(std::ptr::null_mut()) };
-        unsafe {
-            _emval_incref(handle);
-        }
-        Self {
-            handle,
-        }
-    }
-
     pub fn from_i32(i: i32) -> Self {
         // TODO: check val_ref
         Self {
@@ -265,12 +264,12 @@ impl Val {
         unsafe { _emval_is_string(self.handle) }
     }
 
-    pub fn instanceof(&self, v: &Val) -> bool {
+    pub fn instance_of(&self, v: &Val) -> bool {
         unsafe { _emval_instanceof(self.as_handle(), v.as_handle()) }
     }
 
     pub fn is_array(&self) -> bool {
-        self.instanceof(&Val::global("Array"))
+        self.instance_of(&Val::global("Array"))
     }
 
     pub fn is_in(&self, v: &Val) -> bool {
@@ -330,6 +329,15 @@ impl Val {
 
     pub fn not(&self) -> bool {
         unsafe { _emval_not(self.handle) }
+    }
+
+    pub fn add_event_listener<F: FnMut(&Val) + 'static>(&self, ev: &str, f: F) {
+        unsafe {
+            let a: *mut Box<dyn FnMut(&Val)> = Box::into_raw(Box::new(Box::new(f)));
+            let data: *mut std::os::raw::c_void = a as *mut std::os::raw::c_void;
+            let ev = CString::new(ev).unwrap();
+            _emval_add_event_listener(self.handle, ev.as_ptr() as _, data as _);
+        }
     }
 }
 
