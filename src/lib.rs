@@ -1,5 +1,5 @@
 use std::ffi::CString;
-use std::os::raw::*;
+use std::cmp::Ordering;
 
 pub mod sys {
     pub use emscripten_val_sys::sys::*;
@@ -15,6 +15,7 @@ macro_rules! argv {
 }
 
 #[repr(C)]
+#[derive(Eq)]
 pub struct Val {
     handle: EM_VAL,
 }
@@ -27,7 +28,7 @@ impl Val {
         }
     }
 
-    pub fn as_ptr(&self) -> *const c_void {
+    pub fn as_ptr(&self) -> *const () {
         unsafe { std::mem::transmute(self.clone()) }
     }
 
@@ -91,7 +92,7 @@ impl Val {
         self.handle
     }
 
-    pub unsafe fn call0(&self, f: &str, args: (Vec<TYPEID>, Vec<*const c_void>)) -> Val {
+    pub unsafe fn call0(&self, f: &str, args: (Vec<TYPEID>, Vec<*const ()>)) -> Val {
         let f = CString::new(f).unwrap();
         let caller = _emval_get_method_caller(args.0.len() as u32, args.0.as_ptr() as _, 0);
         let ret = _emval_call_method(
@@ -105,7 +106,7 @@ impl Val {
         Val::take_ownership(ret)
     }
 
-    pub unsafe fn call(&self, f: &str, args: &[*const c_void]) -> Val {
+    pub unsafe fn call(&self, f: &str, args: &[*const ()]) -> Val {
         let f = CString::new(f).unwrap();
         let typeids = vec![EmvalType; args.len() + 1];
         let caller = _emval_get_method_caller(typeids.len() as u32, typeids.as_ptr() as _, 0);
@@ -136,25 +137,25 @@ impl Val {
     pub fn from_i32(i: i32) -> Self {
         // TODO: check val_ref
         Self {
-            handle: unsafe { _emval_take_value(IntType, [i as *const c_void].as_ptr() as _) },
+            handle: unsafe { _emval_take_value(IntType, [i as *const ()].as_ptr() as _) },
         }
     }
 
     pub fn from_u32(i: u32) -> Self {
         Self {
-            handle: unsafe { _emval_take_value(IntType, [i as *const c_void].as_ptr() as _) },
+            handle: unsafe { _emval_take_value(IntType, [i as *const ()].as_ptr() as _) },
         }
     }
 
     pub fn from_f32(i: f32) -> Self {
-        let i: *const c_void = unsafe { std::mem::transmute(i) };
+        let i: *const () = unsafe { std::mem::transmute(i) };
         Self {
             handle: unsafe { _emval_take_value(FloatType, [i].as_ptr() as _) },
         }
     }
 
     pub fn from_f64(i: f64) -> Self {
-        let i: *const c_void = unsafe { std::mem::transmute(i as f32) };
+        let i: *const () = unsafe { std::mem::transmute(i as f32) };
         Self {
             handle: unsafe { _emval_take_value(FloatType, [i].as_ptr() as _) },
         }
@@ -274,7 +275,7 @@ impl Val {
         unsafe { _emval_delete(self.as_handle(), prop.clone().into().as_handle()) }
     }
 
-    pub fn new(&self, args: &[*const c_void]) -> Val {
+    pub fn new(&self, args: &[*const ()]) -> Val {
         unsafe {
             let typeids = vec![EmvalType; args.len() + 1];
             let caller = _emval_get_method_caller(typeids.len() as u32, typeids.as_ptr() as _, 1);
@@ -386,4 +387,28 @@ impl From<&Val> for Val {
     }
 }
 
+impl PartialEq for Val {
+    fn eq(&self, other: &Val) -> bool {
+        self.equals(other)
+    }
+}
 
+impl PartialOrd for Val {
+    fn partial_cmp(&self, other: &Val) -> Option<Ordering> {
+        if self.equals(other) {
+            Some(Ordering::Equal)
+        } else if self.gt(other) {
+            Some(Ordering::Greater)
+        } else if self.lt(other) {
+            Some(Ordering::Less)
+        } else {
+            None
+        }
+    }
+}
+
+impl Ord for Val {
+    fn cmp(&self, other: &Val) -> Ordering {
+        self.partial_cmp(other).expect("Vals incomparable!")
+    }
+}
