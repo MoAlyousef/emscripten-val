@@ -40,7 +40,9 @@ impl Val {
     pub fn from_val(v: &Val) -> Self {
         let handle = v.as_handle();
         if v.uses_ref_count() {
-            _emval_incref(handle)
+            unsafe {
+                _emval_incref(handle);
+            }
         }
         Self { handle }
     }
@@ -295,15 +297,15 @@ impl Val {
         }
     }
 
-    pub fn gt<T: Clone + Into<Val>>(&self, v: &T) -> bool {
+    fn gt<T: Clone + Into<Val>>(&self, v: &T) -> bool {
         unsafe { _emval_greater_than(self.handle, v.clone().into().handle) }
     }
 
-    pub fn lt<T: Clone + Into<Val>>(&self, v: &T) -> bool {
+    fn lt<T: Clone + Into<Val>>(&self, v: &T) -> bool {
         unsafe { _emval_less_than(self.handle, v.clone().into().handle) }
     }
 
-    pub fn equals<T: Clone + Into<Val>>(&self, v: &T) -> bool {
+    fn equals<T: Clone + Into<Val>>(&self, v: &T) -> bool {
         unsafe { _emval_equals(self.handle, v.clone().into().handle) }
     }
 
