@@ -380,3 +380,10 @@ impl From<&str> for Val {
     }
 }
 
+impl From<&Val> for Val {
+    fn from(item: &Val) -> Self {
+        Val::from_val(item)
+    }
+}
+
+
