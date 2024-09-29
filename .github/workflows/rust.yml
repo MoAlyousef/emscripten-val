@@ -1,0 +1,22 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: mymindstorm/setup-emsdk@v11
+    - name: build examples
+      run: |
+        rustup target add wasm32-unknown-emscripten
+        cargo build --target=wasm32-unknown-emscripten --examples
