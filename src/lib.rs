@@ -1,5 +1,6 @@
-use std::ffi::CString;
 use std::cmp::Ordering;
+use std::ffi::CString;
+use std::mem;
 
 pub mod sys {
     pub use emscripten_val_sys::sys::*;
@@ -29,7 +30,7 @@ impl Val {
     }
 
     pub fn as_ptr(&self) -> *const () {
-        unsafe { std::mem::transmute(self.clone()) }
+        unsafe { mem::transmute(self.clone()) }
     }
 
     pub fn take_ownership(v: EM_VAL) -> Self {
@@ -37,7 +38,11 @@ impl Val {
     }
 
     pub fn from_val(v: &Val) -> Self {
-        Self { handle: v.handle }
+        let handle = v.as_handle();
+        if v.uses_ref_count() {
+            _emval_incref(handle)
+        }
+        Self { handle }
     }
 
     pub fn undefined() -> Self {
@@ -148,14 +153,14 @@ impl Val {
     }
 
     pub fn from_f32(i: f32) -> Self {
-        let i: *const () = unsafe { std::mem::transmute(i) };
+        let i: *const () = unsafe { mem::transmute(i) };
         Self {
             handle: unsafe { _emval_take_value(FloatType, [i].as_ptr() as _) },
         }
     }
 
     pub fn from_f64(i: f64) -> Self {
-        let i: *const () = unsafe { std::mem::transmute(i as f32) };
+        let i: *const () = unsafe { mem::transmute(i as f32) };
         Self {
             handle: unsafe { _emval_take_value(FloatType, [i].as_ptr() as _) },
         }
@@ -172,7 +177,7 @@ impl Val {
     }
 
     pub fn uses_ref_count(&self) -> bool {
-        let last: EM_VAL = unsafe { std::mem::transmute(_EMVAL_LAST_RESERVED_HANDLE) };
+        let last: EM_VAL = unsafe { mem::transmute(_EMVAL_LAST_RESERVED_HANDLE) };
         self.handle > last
     }
 
@@ -291,33 +296,23 @@ impl Val {
     }
 
     pub fn gt<T: Clone + Into<Val>>(&self, v: &T) -> bool {
-        unsafe {
-            _emval_greater_than(self.handle, v.clone().into().handle)
-        }
+        unsafe { _emval_greater_than(self.handle, v.clone().into().handle) }
     }
 
     pub fn lt<T: Clone + Into<Val>>(&self, v: &T) -> bool {
-        unsafe {
-            _emval_less_than(self.handle, v.clone().into().handle)
-        }
+        unsafe { _emval_less_than(self.handle, v.clone().into().handle) }
     }
 
     pub fn equals<T: Clone + Into<Val>>(&self, v: &T) -> bool {
-        unsafe {
-            _emval_equals(self.handle, v.clone().into().handle)
-        }
+        unsafe { _emval_equals(self.handle, v.clone().into().handle) }
     }
 
     pub fn strictly_equals<T: Clone + Into<Val>>(&self, v: &T) -> bool {
-        unsafe {
-            _emval_strictly_equals(self.handle, v.clone().into().handle)
-        }
+        unsafe { _emval_strictly_equals(self.handle, v.clone().into().handle) }
     }
 
     pub fn not(&self) -> bool {
-        unsafe {
-            _emval_not(self.handle)
-        }
+        unsafe { _emval_not(self.handle) }
     }
 }
 
