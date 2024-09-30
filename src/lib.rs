@@ -9,8 +9,8 @@ pub mod sys {
 use sys::*;
 
 extern "C" {
-    pub fn _emval_as_str(v: EM_VAL) -> *mut std::os::raw::c_char;
-    pub fn _emval_add_event_listener(v: EM_VAL, f: *const std::os::raw::c_char, data: *mut ());
+    pub fn _emval_as_str(v: EM_VAL) -> *mut i8;
+    pub fn _emval_add_event_listener(v: EM_VAL, f: *const i8, data: *mut ());
     pub fn _emval_take_fn(data: *const ()) -> EM_VAL;
 }
 
@@ -86,6 +86,7 @@ impl Val {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         let s = CString::new(s).unwrap();
         Self {
@@ -114,6 +115,9 @@ impl Val {
         self.handle
     }
 
+    /// # Safety
+    ///
+    /// This function depends on mutable statics
     pub unsafe fn call(&self, f: &str, args: &[*const ()]) -> Val {
         let typeids = vec![EmvalType; args.len() + 1];
         let f = CString::new(f).unwrap();
@@ -156,14 +160,14 @@ impl Val {
     }
 
     pub fn from_f32(i: f32) -> Self {
-        let i: *const () = unsafe { mem::transmute(i) };
+        let i = i as i32 as *const ();
         Self {
             handle: unsafe { _emval_take_value(FloatType, [i].as_ptr() as _) },
         }
     }
 
     pub fn from_f64(i: f64) -> Self {
-        let i: *const () = unsafe { mem::transmute(i as f32) };
+        let i = i as f32 as i32 as *const ();
         Self {
             handle: unsafe { _emval_take_value(FloatType, [i].as_ptr() as _) },
         }
@@ -180,8 +184,7 @@ impl Val {
     }
 
     pub fn uses_ref_count(&self) -> bool {
-        let last: EM_VAL = unsafe { mem::transmute(_EMVAL_LAST_RESERVED_HANDLE) };
-        self.handle > last
+        self.handle > _EMVAL_LAST_RESERVED_HANDLE as EM_VAL
     }
 
     pub fn release_ownership(&mut self) -> EM_VAL {
@@ -421,11 +424,5 @@ impl PartialOrd for Val {
         } else {
             None
         }
-    }
-}
-
-impl Ord for Val {
-    fn cmp(&self, other: &Val) -> Ordering {
-        self.partial_cmp(other).expect("Vals incomparable!")
     }
 }
