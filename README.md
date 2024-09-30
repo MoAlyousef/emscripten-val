@@ -5,6 +5,7 @@ A Rust wrapper around the emscripten/val api.
 ## Usage
 Add emscripten-val to your Cargo.toml:
 ```toml
+[dependencies]
 emscripten-val = "0.1.0"
 ```
 
