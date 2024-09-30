@@ -273,13 +273,13 @@ extern "C" {
     pub static mut FloatType: TYPEID;
 }
 extern "C" {
-    pub static mut PointerType: TYPEID;
-}
-extern "C" {
     pub static mut VoidType: TYPEID;
 }
 extern "C" {
     pub static mut EmvalType: TYPEID;
+}
+extern "C" {
+    pub static mut FuncType: TYPEID;
 }
 pub const EM_METHOD_CALLER_KIND_FUNCTION: EM_METHOD_CALLER_KIND = 0;
 pub const EM_METHOD_CALLER_KIND_CONSTRUCTOR: EM_METHOD_CALLER_KIND = 1;

@@ -14,9 +14,9 @@ typedef const void *TYPEID;
 extern TYPEID BoolType;
 extern TYPEID IntType;
 extern TYPEID FloatType;
-extern TYPEID PointerType;
 extern TYPEID VoidType;
 extern TYPEID EmvalType;
+extern TYPEID FuncType;
 
 enum EM_METHOD_CALLER_KIND {
   FUNCTION = 0,

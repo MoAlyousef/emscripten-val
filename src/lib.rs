@@ -11,10 +11,11 @@ use sys::*;
 extern "C" {
     pub fn _emval_as_str(v: EM_VAL) -> *mut std::os::raw::c_char;
     pub fn _emval_add_event_listener(v: EM_VAL, f: *const std::os::raw::c_char, data: *mut ());
+    pub fn _emval_take_fn(data: *const ()) -> EM_VAL;
 }
 
 #[no_mangle]
-unsafe extern "C" fn rust_caller(em: EM_VAL, data: *const ()) {
+unsafe extern "C" fn emscripten_val_rust_caller(em: EM_VAL, data: *const ()) {
     let mut val = Val::take_ownership(em);
     let a = data as *mut Box<dyn FnMut(&Val)>;
     let f: &mut (dyn FnMut(&Val)) = &mut **a;
@@ -337,6 +338,16 @@ impl Val {
             let data: *mut std::os::raw::c_void = a as *mut std::os::raw::c_void;
             let ev = CString::new(ev).unwrap();
             _emval_add_event_listener(self.handle, ev.as_ptr() as _, data as _);
+        }
+    }
+
+    pub fn from_fn<F: FnMut(&Val) + 'static>(f: F) -> Val {
+        unsafe {
+            let a: *mut Box<dyn FnMut(&Val)> = Box::into_raw(Box::new(Box::new(f)));
+            let data: *mut std::os::raw::c_void = a as *mut std::os::raw::c_void;
+            Self {
+                handle: _emval_take_fn(data as _),
+            }
         }
     }
 }
