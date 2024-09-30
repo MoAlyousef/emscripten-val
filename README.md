@@ -25,10 +25,23 @@ fn main() {
 use emscripten_val::*;
 
 fn main() {
-    let a = Val::from_array(&[1, 2]);
-    a.call("push", argv![3]);
     let console = Val::global("console");
-    console.call("log", argv![a]);
+    let document = Val::global("document");
+    let elem = document.call("createElement", argv!["BUTTON"]);
+    elem.set(&"textContent", &"Click");
+    let body = document.call("getElementsByTagName", argv!["body"]).get(&0);
+    elem.call(
+        "addEventListener",
+        argv![
+            "click",
+            Val::from_fn(move |ev| {
+                console.call("clear", &[]);
+                println!("client x: {}", ev.get(&"clientX").as_i32());
+                println!("hello from Rust");
+            })
+        ],
+    );
+    body.call("appendChild", argv![elem]);
 }
 ```
 
@@ -57,6 +70,31 @@ fn main() {
 
     println!("All done!");
 }
+```
+
+## Building
+To build, you need:
+- emsdk
+- wasm32-unknown-emscripten target.
+
+The emsdk can be installed by following the instructions at:
+https://emscripten.org/docs/getting_started/downloads.html
+
+To get the rust target:
+```bash
+rustup target add wasm32-unknown-emscripten
+```
+
+Running the build, you only need to pass the target to cargo:
+```
+cargo build --target=wasm32-unknown-emscripten
+```
+
+## Passing flags to Emscripten
+The most convenient way to pass extra flags to the emscripten toolchain is via a .cargo/config.toml file:
+```toml
+[target.wasm32-unknown-emscripten]
+rustflags = ["-Clink-args=-sASYNCIFY=1 -sALLOW_MEMORY_GROWTH -sOFFSCREENCANVAS_SUPPORT=1"]
 ```
 
 ## Deployment
