@@ -1,21 +1,18 @@
+use emscripten_val_sys::sys;
 use std::cmp::Ordering;
 use std::ffi::CString;
-use std::mem;
 
-pub mod sys {
-    pub use emscripten_val_sys::sys::*;
-}
-
-use sys::*;
+#[allow(non_camel_case_types)]
+pub type EM_VAL = sys::EM_VAL;
 
 extern "C" {
-    pub fn _emval_as_str(v: EM_VAL) -> *mut i8;
-    pub fn _emval_add_event_listener(v: EM_VAL, f: *const i8, data: *mut ());
+    pub fn _emval_as_str(v: sys::EM_VAL) -> *mut i8;
+    pub fn _emval_add_event_listener(v: sys::EM_VAL, f: *const i8, data: *mut ());
     pub fn _emval_take_fn(data: *const ()) -> EM_VAL;
 }
 
 #[no_mangle]
-unsafe extern "C" fn emscripten_val_rust_caller(em: EM_VAL, data: *const ()) {
+unsafe extern "C" fn emscripten_val_rust_caller(em: sys::EM_VAL, data: *const ()) {
     let mut val = Val::take_ownership(em);
     let a = data as *mut Box<dyn FnMut(&Val)>;
     let f: &mut (dyn FnMut(&Val)) = &mut **a;
@@ -26,29 +23,25 @@ unsafe extern "C" fn emscripten_val_rust_caller(em: EM_VAL, data: *const ()) {
 #[macro_export]
 macro_rules! argv {
     ($($rest:expr),*) => {{
-        &[$(Val::from($rest).as_ptr()),*]
+        &[$(&Val::from($rest)),*]
     }};
 }
 
 #[repr(C)]
 #[derive(Eq)]
 pub struct Val {
-    handle: EM_VAL,
+    handle: sys::EM_VAL,
 }
 
 impl Val {
     pub fn global(name: &str) -> Self {
         let name = CString::new(name).unwrap();
         Self {
-            handle: unsafe { _emval_get_global(name.as_ptr()) },
+            handle: unsafe { sys::_emval_get_global(name.as_ptr()) },
         }
     }
 
-    pub fn as_ptr(&self) -> *const () {
-        unsafe { mem::transmute(self.clone()) }
-    }
-
-    pub fn take_ownership(v: EM_VAL) -> Self {
+    pub fn take_ownership(v: sys::EM_VAL) -> Self {
         Self { handle: v }
     }
 
@@ -56,7 +49,7 @@ impl Val {
         let handle = v.as_handle();
         if v.uses_ref_count() {
             unsafe {
-                _emval_incref(handle);
+                sys::_emval_incref(handle);
             }
         }
         Self { handle }
@@ -64,25 +57,25 @@ impl Val {
 
     pub fn undefined() -> Self {
         Self {
-            handle: _EMVAL_UNDEFINED as EM_VAL,
+            handle: sys::_EMVAL_UNDEFINED as EM_VAL,
         }
     }
 
     pub fn object() -> Self {
         Self {
-            handle: unsafe { _emval_new_object() },
+            handle: unsafe { sys::_emval_new_object() },
         }
     }
 
     pub fn null() -> Self {
         Self {
-            handle: _EMVAL_NULL as EM_VAL,
+            handle: sys::_EMVAL_NULL as EM_VAL,
         }
     }
 
     pub fn array() -> Self {
         Self {
-            handle: unsafe { _emval_new_array() },
+            handle: unsafe { sys::_emval_new_array() },
         }
     }
 
@@ -90,23 +83,21 @@ impl Val {
     pub fn from_str(s: &str) -> Self {
         let s = CString::new(s).unwrap();
         Self {
-            handle: unsafe { _emval_new_cstring(s.as_ptr() as _) },
+            handle: unsafe { sys::_emval_new_cstring(s.as_ptr() as _) },
         }
     }
 
     pub fn module_property(s: &str) -> Self {
         let s = CString::new(s).unwrap();
         Self {
-            handle: unsafe { _emval_get_module_property(s.as_ptr() as _) },
+            handle: unsafe { sys::_emval_get_module_property(s.as_ptr() as _) },
         }
     }
 
     pub fn from_array<T: Clone + Into<Val>>(arr: &[T]) -> Self {
         let v = Val::array();
         for elem in arr {
-            unsafe {
-                v.call("push", argv![elem.clone().into()]);
-            }
+            v.call("push", argv![elem.clone().into()]);
         }
         v
     }
@@ -118,73 +109,78 @@ impl Val {
     /// # Safety
     ///
     /// This function depends on mutable statics
-    pub unsafe fn call(&self, f: &str, args: &[*const ()]) -> Val {
-        let typeids = vec![EmvalType; args.len() + 1];
-        let f = CString::new(f).unwrap();
-        let caller = _emval_get_method_caller(typeids.len() as u32, typeids.as_ptr() as _, 0);
-        let ret = _emval_call_method(
-            caller,
-            self.handle,
-            f.as_ptr() as _,
-            std::ptr::null_mut(),
-            args.as_ptr() as _,
-        );
-        let ret = ret as u32 as EM_VAL;
-        Val::take_ownership(ret)
+    pub fn call(&self, f: &str, args: &[&Val]) -> Val {
+        unsafe {
+            let typeids = vec![sys::EmvalType; args.len() + 1];
+            let f = CString::new(f).unwrap();
+            let caller =
+                sys::_emval_get_method_caller(typeids.len() as u32, typeids.as_ptr() as _, 0);
+            for arg in args {
+                sys::_emval_incref(arg.handle);
+            }
+            let ret = sys::_emval_call_method(
+                caller,
+                self.handle,
+                f.as_ptr() as _,
+                std::ptr::null_mut(),
+                *(args.as_ptr() as *const *const ()) as _,
+            );
+            let ret = ret as u32 as EM_VAL;
+            Val::take_ownership(ret)
+        }
     }
 
     pub fn get<T: Clone + Into<Val>>(&self, prop: &T) -> Val {
         let prop: Val = prop.clone().into();
         Val {
-            handle: unsafe { _emval_get_property(self.handle, prop.handle) },
+            handle: unsafe { sys::_emval_get_property(self.handle, prop.handle) },
         }
     }
 
     pub fn set<T: Clone + Into<Val>, U: Clone + Into<Val>>(&self, prop: &T, val: &U) {
         let prop: Val = prop.clone().into();
         let val: Val = val.clone().into();
-        unsafe { _emval_set_property(self.handle, prop.handle, val.handle) };
+        unsafe { sys::_emval_set_property(self.handle, prop.handle, val.handle) };
     }
 
     pub fn from_i32(i: i32) -> Self {
-        // TODO: check val_ref
         Self {
-            handle: unsafe { _emval_take_value(IntType, [i as *const ()].as_ptr() as _) },
+            handle: unsafe { sys::_emval_take_value(sys::IntType, [i as *const ()].as_ptr() as _) },
         }
     }
 
     pub fn from_u32(i: u32) -> Self {
         Self {
-            handle: unsafe { _emval_take_value(IntType, [i as *const ()].as_ptr() as _) },
+            handle: unsafe { sys::_emval_take_value(sys::IntType, [i as *const ()].as_ptr() as _) },
         }
     }
 
     pub fn from_f32(i: f32) -> Self {
         let i = i as i32 as *const ();
         Self {
-            handle: unsafe { _emval_take_value(FloatType, [i].as_ptr() as _) },
+            handle: unsafe { sys::_emval_take_value(sys::FloatType, [i].as_ptr() as _) },
         }
     }
 
     pub fn from_f64(i: f64) -> Self {
         let i = i as f32 as i32 as *const ();
         Self {
-            handle: unsafe { _emval_take_value(FloatType, [i].as_ptr() as _) },
+            handle: unsafe { sys::_emval_take_value(sys::FloatType, [i].as_ptr() as _) },
         }
     }
 
     pub fn from_bool(i: bool) -> Self {
         Self {
             handle: if i {
-                _EMVAL_TRUE as EM_VAL
+                sys::_EMVAL_TRUE as EM_VAL
             } else {
-                _EMVAL_FALSE as EM_VAL
+                sys::_EMVAL_FALSE as EM_VAL
             },
         }
     }
 
     pub fn uses_ref_count(&self) -> bool {
-        self.handle > _EMVAL_LAST_RESERVED_HANDLE as EM_VAL
+        self.handle > sys::_EMVAL_LAST_RESERVED_HANDLE as EM_VAL
     }
 
     pub fn release_ownership(&mut self) -> EM_VAL {
@@ -194,33 +190,31 @@ impl Val {
     }
 
     pub fn has_own_property(&self, key: &str) -> bool {
-        unsafe {
-            Val::global("Object")
-                .get(&"prototype")
-                .get(&"hasOwnProperty")
-                .call("call", argv![self.clone(), key])
-                .as_bool()
-        }
+        Val::global("Object")
+            .get(&"prototype")
+            .get(&"hasOwnProperty")
+            .call("call", argv![self.clone(), key])
+            .as_bool()
     }
 
     pub fn as_f64(&self) -> f64 {
-        unsafe { _emval_as(self.handle, FloatType, std::ptr::null_mut()) }
+        unsafe { sys::_emval_as(self.handle, sys::FloatType, std::ptr::null_mut()) }
     }
 
     pub fn as_f32(&self) -> f32 {
-        unsafe { _emval_as(self.handle, FloatType, std::ptr::null_mut()) as f32 }
+        unsafe { sys::_emval_as(self.handle, sys::FloatType, std::ptr::null_mut()) as f32 }
     }
 
     pub fn as_i32(&self) -> i32 {
-        unsafe { _emval_as(self.handle, IntType, std::ptr::null_mut()) as i32 }
+        unsafe { sys::_emval_as(self.handle, sys::IntType, std::ptr::null_mut()) as i32 }
     }
 
     pub fn as_u32(&self) -> u32 {
-        unsafe { _emval_as(self.handle, IntType, std::ptr::null_mut()) as u32 }
+        unsafe { sys::_emval_as(self.handle, sys::IntType, std::ptr::null_mut()) as u32 }
     }
 
     pub fn as_bool(&self) -> bool {
-        unsafe { _emval_as(self.handle, BoolType, std::ptr::null_mut()) as i32 != 0 }
+        unsafe { sys::_emval_as(self.handle, sys::BoolType, std::ptr::null_mut()) as i32 != 0 }
     }
 
     pub fn as_string(&self) -> String {
@@ -231,31 +225,31 @@ impl Val {
     }
 
     pub fn is_null(&self) -> bool {
-        self.handle == _EMVAL_NULL as EM_VAL
+        self.handle == sys::_EMVAL_NULL as EM_VAL
     }
 
     pub fn is_undefined(&self) -> bool {
-        self.handle == _EMVAL_UNDEFINED as EM_VAL
+        self.handle == sys::_EMVAL_UNDEFINED as EM_VAL
     }
 
     pub fn is_true(&self) -> bool {
-        self.handle == _EMVAL_TRUE as EM_VAL
+        self.handle == sys::_EMVAL_TRUE as EM_VAL
     }
 
     pub fn is_false(&self) -> bool {
-        self.handle == _EMVAL_FALSE as EM_VAL
+        self.handle == sys::_EMVAL_FALSE as EM_VAL
     }
 
     pub fn is_number(&self) -> bool {
-        unsafe { _emval_is_number(self.handle) }
+        unsafe { sys::_emval_is_number(self.handle) }
     }
 
     pub fn is_string(&self) -> bool {
-        unsafe { _emval_is_string(self.handle) }
+        unsafe { sys::_emval_is_string(self.handle) }
     }
 
     pub fn instance_of(&self, v: &Val) -> bool {
-        unsafe { _emval_instanceof(self.as_handle(), v.as_handle()) }
+        unsafe { sys::_emval_instanceof(self.as_handle(), v.as_handle()) }
     }
 
     pub fn is_array(&self) -> bool {
@@ -263,38 +257,42 @@ impl Val {
     }
 
     pub fn is_in(&self, v: &Val) -> bool {
-        unsafe { _emval_in(self.as_handle(), v.as_handle()) }
+        unsafe { sys::_emval_in(self.as_handle(), v.as_handle()) }
     }
 
     pub fn type_of(&self) -> Val {
         Val {
-            handle: unsafe { _emval_typeof(self.handle) },
+            handle: unsafe { sys::_emval_typeof(self.handle) },
         }
     }
 
     pub fn throw(&self) -> bool {
-        unsafe { _emval_throw(self.as_handle()) }
+        unsafe { sys::_emval_throw(self.as_handle()) }
     }
 
     pub fn await_(&self) -> Val {
         Val {
-            handle: unsafe { _emval_await(self.handle) },
+            handle: unsafe { sys::_emval_await(self.handle) },
         }
     }
 
     pub fn delete<T: Clone + Into<Val>>(&self, prop: &T) -> bool {
-        unsafe { _emval_delete(self.as_handle(), prop.clone().into().as_handle()) }
+        unsafe { sys::_emval_delete(self.as_handle(), prop.clone().into().as_handle()) }
     }
 
-    pub fn new(&self, args: &[*const ()]) -> Val {
+    pub fn new(&self, args: &[&Val]) -> Val {
         unsafe {
-            let typeids = vec![EmvalType; args.len() + 1];
-            let caller = _emval_get_method_caller(typeids.len() as u32, typeids.as_ptr() as _, 1);
-            let ret = _emval_call(
+            let typeids = vec![sys::EmvalType; args.len() + 1];
+            let caller =
+                sys::_emval_get_method_caller(typeids.len() as u32, typeids.as_ptr() as _, 1);
+            for arg in args {
+                sys::_emval_incref(arg.handle);
+            }
+            let ret = sys::_emval_call(
                 caller,
                 self.handle,
                 std::ptr::null_mut(),
-                args.as_ptr() as _,
+                *(args.as_ptr() as *const *const ()) as _,
             );
             let ret = ret as u32 as EM_VAL;
             Val::take_ownership(ret)
@@ -302,25 +300,26 @@ impl Val {
     }
 
     fn gt<T: Clone + Into<Val>>(&self, v: &T) -> bool {
-        unsafe { _emval_greater_than(self.handle, v.clone().into().handle) }
+        unsafe { sys::_emval_greater_than(self.handle, v.clone().into().handle) }
     }
 
     fn lt<T: Clone + Into<Val>>(&self, v: &T) -> bool {
-        unsafe { _emval_less_than(self.handle, v.clone().into().handle) }
+        unsafe { sys::_emval_less_than(self.handle, v.clone().into().handle) }
     }
 
     fn equals<T: Clone + Into<Val>>(&self, v: &T) -> bool {
-        unsafe { _emval_equals(self.handle, v.clone().into().handle) }
+        unsafe { sys::_emval_equals(self.handle, v.clone().into().handle) }
     }
 
     pub fn strictly_equals<T: Clone + Into<Val>>(&self, v: &T) -> bool {
-        unsafe { _emval_strictly_equals(self.handle, v.clone().into().handle) }
+        unsafe { sys::_emval_strictly_equals(self.handle, v.clone().into().handle) }
     }
 
     pub fn not(&self) -> bool {
-        unsafe { _emval_not(self.handle) }
+        unsafe { sys::_emval_not(self.handle) }
     }
 
+    /// Convenience method
     pub fn add_event_listener<F: FnMut(&Val) + 'static>(&self, ev: &str, f: F) {
         unsafe {
             let a: *mut Box<dyn FnMut(&Val)> = Box::into_raw(Box::new(Box::new(f)));
@@ -345,7 +344,7 @@ impl Drop for Val {
     fn drop(&mut self) {
         if self.uses_ref_count() {
             unsafe {
-                _emval_decref(self.as_handle());
+                sys::_emval_decref(self.as_handle());
             }
             self.handle = std::ptr::null_mut();
         }
@@ -356,7 +355,7 @@ impl Clone for Val {
     fn clone(&self) -> Self {
         if self.uses_ref_count() {
             unsafe {
-                _emval_incref(self.handle);
+                sys::_emval_incref(self.handle);
             }
         }
         Self {
