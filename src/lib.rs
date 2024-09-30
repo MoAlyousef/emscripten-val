@@ -114,23 +114,9 @@ impl Val {
         self.handle
     }
 
-    pub unsafe fn call0(&self, f: &str, args: (Vec<TYPEID>, Vec<*const ()>)) -> Val {
-        let f = CString::new(f).unwrap();
-        let caller = _emval_get_method_caller(args.0.len() as u32, args.0.as_ptr() as _, 0);
-        let ret = _emval_call_method(
-            caller,
-            self.handle,
-            f.as_ptr() as _,
-            std::ptr::null_mut(),
-            args.1.as_ptr() as _,
-        );
-        let ret = ret as u32 as EM_VAL;
-        Val::take_ownership(ret)
-    }
-
     pub unsafe fn call(&self, f: &str, args: &[*const ()]) -> Val {
-        let f = CString::new(f).unwrap();
         let typeids = vec![EmvalType; args.len() + 1];
+        let f = CString::new(f).unwrap();
         let caller = _emval_get_method_caller(typeids.len() as u32, typeids.as_ptr() as _, 0);
         let ret = _emval_call_method(
             caller,
