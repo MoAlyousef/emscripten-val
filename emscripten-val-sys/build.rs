@@ -4,6 +4,7 @@ fn main() {
     cc::Build::new()
         .file("emval_support/emval_support.cpp")
         .cpp(true)
+        .compiler("em++")
         .compile("emval_support");
     println!("cargo:rustc-link-lib=embind");
 }

@@ -1,6 +1,6 @@
 [package]
 name = "emscripten-val"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "A Rust wrapper around the emscripten/val api"
 homepage = "https://github.com/MoAlyousef/emscripten-val"
@@ -11,6 +11,9 @@ license = "MIT"
 
 [dependencies]
 emscripten-val-sys = { path = "emscripten-val-sys", version = "0.1.0" }
+
+[dev-dependencies]
+emscripten-functions = "0.2"
 
 [package.metadata.docs.rs]
 default-target = "wasm32-unknown-emscripten"
