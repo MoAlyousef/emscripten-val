@@ -13,5 +13,5 @@ license = "MIT"
 emscripten-functions = "0.2"
 
 [dependencies]
-emscripten-val-sys = { path = "emscripten-val-sys", version = "=0.1.2" }
+emscripten-val-sys = { path = "emscripten-val-sys", version = "=0.1.3" }
 
