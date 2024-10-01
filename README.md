@@ -6,7 +6,7 @@ A Rust wrapper around the emscripten/val api.
 Add emscripten-val to your Cargo.toml:
 ```toml
 [dependencies]
-emscripten-val = "0.1.4"
+emscripten-val = "0.1.6"
 ```
 
 Then you can import and use the Val wrapper and its associated methods:
@@ -34,10 +34,11 @@ fn main() {
         "addEventListener",
         argv![
             "click",
-            Val::from_fn(move |ev| {
+            Val::from_fn1(move |ev| {
                 console.call("clear", &[]);
                 println!("client x: {}", ev.get(&"clientX").as_i32());
                 println!("hello from Rust");
+                ().into()
             })
         ],
     );

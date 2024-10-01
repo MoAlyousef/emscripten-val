@@ -10,10 +10,11 @@ fn main() {
         "addEventListener",
         argv![
             "click",
-            Val::from_fn(move |ev| {
+            Val::from_fn1(move |ev| -> Val {
                 console.call("clear", &[]);
                 println!("client x: {}", ev.get(&"clientX").as_i32());
                 println!("hello from Rust");
+                ().into()
             })
         ],
     );

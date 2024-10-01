@@ -2,28 +2,16 @@
 #![allow(clippy::needless_doctest_main)]
 
 use emscripten_val_sys::sys;
-use std::cmp::Ordering;
-use std::ffi::{CString, CStr};
+use std::ffi::{CStr, CString};
+
+mod externs;
+mod impls;
+
+use crate::externs::*;
 
 /// Emscripten's EM_VAL type
 #[allow(non_camel_case_types)]
 pub type EM_VAL = sys::EM_VAL;
-
-extern "C" {
-    pub fn _emval_as_str(v: sys::EM_VAL) -> *mut i8;
-    pub fn _emval_add_event_listener(v: sys::EM_VAL, f: *const i8, data: *mut ());
-    pub fn _emval_take_fn(data: *const ()) -> EM_VAL;
-    pub fn free(ptr: *mut ());
-}
-
-#[no_mangle]
-unsafe extern "C" fn emscripten_val_rust_caller(em: sys::EM_VAL, data: *const ()) {
-    let mut val = Val::take_ownership(em);
-    let a = data as *mut Box<dyn FnMut(&Val)>;
-    let f: &mut (dyn FnMut(&Val)) = &mut **a;
-    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(&val)));
-    val.release_ownership();
-}
 
 /// A helper macro which transforms every argument into a Val object.
 /// This helps reduce boilerplate for `Val::call`.
@@ -38,7 +26,7 @@ macro_rules! argv {
 #[repr(C)]
 #[derive(Eq)]
 pub struct Val {
-    handle: sys::EM_VAL,
+    handle: EM_VAL,
 }
 
 impl Val {
@@ -290,13 +278,13 @@ impl Val {
     }
 
     /// Checks whether the object is an instanceof another object
-    pub fn instance_of(&self, v: &Val) -> bool {
+    pub fn instanceof(&self, v: &Val) -> bool {
         unsafe { sys::_emval_instanceof(self.as_handle(), v.as_handle()) }
     }
 
     /// Checks whether a value is an Array
     pub fn is_array(&self) -> bool {
-        self.instance_of(&Val::global("Array"))
+        self.instanceof(&Val::global("Array"))
     }
 
     /// Checks if the specified property is in the specified object
@@ -372,109 +360,83 @@ impl Val {
 
     /// Convenience method.
     /// Adds a callback to an EventTarget object
-    pub fn add_event_listener<F: FnMut(&Val) + 'static>(&self, ev: &str, f: F) {
+    pub fn add_event_listener<F: (FnMut(&Val) -> Val) + 'static>(&self, ev: &str, f: F) {
         unsafe {
-            let a: *mut Box<dyn FnMut(&Val)> = Box::into_raw(Box::new(Box::new(f)));
+            let a: *mut Box<dyn FnMut(&Val) -> Val> = Box::into_raw(Box::new(Box::new(f)));
             let data: *mut std::os::raw::c_void = a as *mut std::os::raw::c_void;
             let ev = CString::new(ev).unwrap();
             _emval_add_event_listener(self.handle, ev.as_ptr() as _, data as _);
         }
     }
 
-    /// Generates a Val object from a function object
-    pub fn from_fn<F: FnMut(&Val) + 'static>(f: F) -> Val {
+    /// Generates a Val object from a function object which takes 0 args
+    pub fn from_fn0<F: (FnMut() -> Val) + 'static>(f: F) -> Val {
         unsafe {
-            let a: *mut Box<dyn FnMut(&Val)> = Box::into_raw(Box::new(Box::new(f)));
+            let a: *mut Box<dyn FnMut() -> Val> = Box::into_raw(Box::new(Box::new(f)));
             let data: *mut std::os::raw::c_void = a as *mut std::os::raw::c_void;
             Self {
-                handle: _emval_take_fn(data as _),
+                handle: _emval_take_fn(0, data as _),
             }
         }
     }
-}
 
-impl Drop for Val {
-    fn drop(&mut self) {
-        if self.uses_ref_count() {
-            unsafe {
-                sys::_emval_decref(self.as_handle());
-            }
-            self.handle = std::ptr::null_mut();
-        }
-    }
-}
-
-impl Clone for Val {
-    fn clone(&self) -> Self {
-        if self.uses_ref_count() {
-            unsafe {
-                sys::_emval_incref(self.handle);
+    /// Generates a Val object from a function object which takes 1 arg
+    pub fn from_fn1<F: (FnMut(&Val) -> Val) + 'static>(f: F) -> Val {
+        unsafe {
+            #[allow(clippy::type_complexity)]
+            let a: *mut Box<dyn FnMut(&Val) -> Val> = Box::into_raw(Box::new(Box::new(f)));
+            let data: *mut std::os::raw::c_void = a as *mut std::os::raw::c_void;
+            Self {
+                handle: _emval_take_fn(1, data as _),
             }
         }
-        Self {
-            handle: self.handle,
+    }
+
+    /// Generates a Val object from a function object which takes 2 args
+    pub fn from_fn2<F: (FnMut(&Val, &Val) -> Val) + 'static>(f: F) -> Val {
+        unsafe {
+            #[allow(clippy::type_complexity)]
+            let a: *mut Box<dyn FnMut(&Val, &Val) -> Val> = Box::into_raw(Box::new(Box::new(f)));
+            let data: *mut std::os::raw::c_void = a as *mut std::os::raw::c_void;
+            Self {
+                handle: _emval_take_fn(2, data as _),
+            }
         }
     }
-}
 
-impl From<i32> for Val {
-    fn from(item: i32) -> Self {
-        Val::from_i32(item)
-    }
-}
-
-impl From<u32> for Val {
-    fn from(item: u32) -> Self {
-        Val::from_u32(item)
-    }
-}
-
-impl From<f32> for Val {
-    fn from(item: f32) -> Self {
-        Val::from_f32(item)
-    }
-}
-
-impl From<f64> for Val {
-    fn from(item: f64) -> Self {
-        Val::from_f64(item)
-    }
-}
-
-impl From<bool> for Val {
-    fn from(item: bool) -> Self {
-        Val::from_bool(item)
-    }
-}
-
-impl From<&str> for Val {
-    fn from(item: &str) -> Self {
-        Val::from_str(item)
-    }
-}
-
-impl From<&Val> for Val {
-    fn from(item: &Val) -> Self {
-        Val::from_val(item)
-    }
-}
-
-impl PartialEq for Val {
-    fn eq(&self, other: &Val) -> bool {
-        self.equals(other)
-    }
-}
-
-impl PartialOrd for Val {
-    fn partial_cmp(&self, other: &Val) -> Option<Ordering> {
-        if self.equals(other) {
-            Some(Ordering::Equal)
-        } else if self.gt(other) {
-            Some(Ordering::Greater)
-        } else if self.lt(other) {
-            Some(Ordering::Less)
-        } else {
-            None
+    /// Generates a Val object from a function object which takes 3 args
+    pub fn from_fn3<F: (FnMut(&Val, &Val, &Val) -> Val) + 'static>(f: F) -> Val {
+        unsafe {
+            #[allow(clippy::type_complexity)]
+            let a: *mut Box<dyn FnMut(&Val, &Val, &Val) -> Val> =
+                Box::into_raw(Box::new(Box::new(f)));
+            let data: *mut std::os::raw::c_void = a as *mut std::os::raw::c_void;
+            Self {
+                handle: _emval_take_fn(3, data as _),
+            }
         }
+    }
+
+    /// Generates a Val object from a function object which takes 4 args
+    pub fn from_fn4<F: (FnMut(&Val, &Val, &Val, &Val) -> Val) + 'static>(f: F) -> Val {
+        unsafe {
+            #[allow(clippy::type_complexity)]
+            let a: *mut Box<dyn FnMut(&Val, &Val, &Val, &Val) -> Val> =
+                Box::into_raw(Box::new(Box::new(f)));
+            let data: *mut std::os::raw::c_void = a as *mut std::os::raw::c_void;
+            Self {
+                handle: _emval_take_fn(4, data as _),
+            }
+        }
+    }
+
+    /// Convert a javascript Array to a Rust Vec
+    pub fn to_vec<T: Clone + From<Val>>(&self) -> Vec<T> {
+        let len = self.get(&"length").as_u32();
+        let mut v: Vec<T> = vec![];
+        for i in 0..len {
+            v.push(T::from(self.get(&i)))
+        }
+        v
     }
 }

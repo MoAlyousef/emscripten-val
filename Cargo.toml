@@ -1,6 +1,6 @@
 [package]
 name = "emscripten-val"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 description = "A Rust wrapper around the emscripten/val api"
 homepage = "https://github.com/MoAlyousef/emscripten-val"
