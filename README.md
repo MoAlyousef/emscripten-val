@@ -6,7 +6,7 @@ A Rust wrapper around the emscripten/val api.
 Add emscripten-val to your Cargo.toml:
 ```toml
 [dependencies]
-emscripten-val = "0.1.2"
+emscripten-val = "0.1.4"
 ```
 
 Then you can import and use the Val wrapper and its associated methods:

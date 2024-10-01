@@ -5,6 +5,7 @@ use emscripten_val_sys::sys;
 use std::cmp::Ordering;
 use std::ffi::CString;
 
+/// Emscripten's EM_VAL type
 #[allow(non_camel_case_types)]
 pub type EM_VAL = sys::EM_VAL;
 
@@ -23,6 +24,8 @@ unsafe extern "C" fn emscripten_val_rust_caller(em: sys::EM_VAL, data: *const ()
     val.release_ownership();
 }
 
+/// A helper macro which transforms every argument into a Val object.
+/// This helps reduce boilerplate for `Val::call`.
 #[macro_export]
 macro_rules! argv {
     ($($rest:expr),*) => {{
