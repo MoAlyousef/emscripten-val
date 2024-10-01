@@ -51,7 +51,7 @@ use emscripten_val::*;
 fn main() {
     #[allow(non_snake_case)]
     let mut AudioContext = Val::global("AudioContext");
-    if AudioContext.not() {
+    if !AudioContext.as_bool() {
         println!("No global AudioContext, trying webkitAudioContext");
         AudioContext = Val::global("webkitAudioContext");
     }
