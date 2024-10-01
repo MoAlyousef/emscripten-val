@@ -1,6 +1,6 @@
 [package]
 name = "emscripten-val"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 description = "A Rust wrapper around the emscripten/val api"
 homepage = "https://github.com/MoAlyousef/emscripten-val"
@@ -8,6 +8,9 @@ repository = "https://github.com/MoAlyousef/emscripten-val"
 keywords = ["emscripten", "bindings"]
 categories = ["api-bindings", "wasm"]
 license = "MIT"
+
+[dev-dependencies]
+emscripten-functions = "0.2"
 
 [dependencies]
 emscripten-val-sys = { path = "emscripten-val-sys", version = "=0.1.2" }

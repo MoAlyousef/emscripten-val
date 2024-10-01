@@ -3,7 +3,7 @@
 
 use emscripten_val_sys::sys;
 use std::cmp::Ordering;
-use std::ffi::CString;
+use std::ffi::{CString, CStr};
 
 /// Emscripten's EM_VAL type
 #[allow(non_camel_case_types)]
@@ -13,6 +13,7 @@ extern "C" {
     pub fn _emval_as_str(v: sys::EM_VAL) -> *mut i8;
     pub fn _emval_add_event_listener(v: sys::EM_VAL, f: *const i8, data: *mut ());
     pub fn _emval_take_fn(data: *const ()) -> EM_VAL;
+    pub fn free(ptr: *mut ());
 }
 
 #[no_mangle]
@@ -252,7 +253,9 @@ impl Val {
     pub fn as_string(&self) -> String {
         unsafe {
             let ptr = _emval_as_str(self.handle);
-            CString::from_raw(ptr).to_string_lossy().to_string()
+            let ret = CStr::from_ptr(ptr).to_string_lossy().to_string();
+            free(ptr as _);
+            ret
         }
     }
 
