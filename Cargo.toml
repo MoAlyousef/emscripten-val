@@ -1,6 +1,6 @@
 [package]
 name = "emscripten-val"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 description = "A Rust wrapper around the emscripten/val api"
 homepage = "https://github.com/MoAlyousef/emscripten-val"
@@ -13,5 +13,5 @@ license = "MIT"
 emscripten-functions = "0.2"
 
 [dependencies]
-emscripten-val-sys = { path = "emscripten-val-sys", version = "=0.1.3" }
+emscripten-val-sys = { path = "emscripten-val-sys", version = "=0.1.7" }
 
