@@ -1,10 +1,10 @@
-use crate::{Val, EM_VAL};
+use crate::{val::Val, val::EM_VAL};
 
 extern "C" {
     pub fn _emval_as_str(v: EM_VAL) -> *mut i8;
     pub fn _emval_add_event_listener(v: EM_VAL, f: *const i8, data: *mut ());
     pub fn _emval_take_fn(argcount: u8, data: *const ()) -> EM_VAL;
-    pub fn free(ptr: *mut ());
+    pub fn free(ptr: *const ());
 }
 
 #[no_mangle]

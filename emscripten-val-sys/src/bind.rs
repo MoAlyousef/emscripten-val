@@ -146,6 +146,49 @@ pub const SIG_ATOMIC_WIDTH: u32 = 32;
 pub const SIZE_WIDTH: u32 = 64;
 pub const WCHAR_WIDTH: u32 = 32;
 pub const WINT_WIDTH: u32 = 32;
+#[repr(C)]
+#[repr(align(16))]
+#[derive(Debug, Copy, Clone)]
+pub struct max_align_t {
+    pub __clang_max_align_nonce1: ::std::os::raw::c_longlong,
+    pub __bindgen_padding_0: u64,
+    pub __clang_max_align_nonce2: u128,
+}
+#[test]
+fn bindgen_test_layout_max_align_t() {
+    const UNINIT: ::std::mem::MaybeUninit<max_align_t> = ::std::mem::MaybeUninit::uninit();
+    let ptr = UNINIT.as_ptr();
+    assert_eq!(
+        ::std::mem::size_of::<max_align_t>(),
+        32usize,
+        concat!("Size of: ", stringify!(max_align_t))
+    );
+    assert_eq!(
+        ::std::mem::align_of::<max_align_t>(),
+        16usize,
+        concat!("Alignment of ", stringify!(max_align_t))
+    );
+    assert_eq!(
+        unsafe { ::std::ptr::addr_of!((*ptr).__clang_max_align_nonce1) as usize - ptr as usize },
+        0usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(max_align_t),
+            "::",
+            stringify!(__clang_max_align_nonce1)
+        )
+    );
+    assert_eq!(
+        unsafe { ::std::ptr::addr_of!((*ptr).__clang_max_align_nonce2) as usize - ptr as usize },
+        16usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(max_align_t),
+            "::",
+            stringify!(__clang_max_align_nonce2)
+        )
+    );
+}
 pub type __u_char = ::std::os::raw::c_uchar;
 pub type __u_short = ::std::os::raw::c_ushort;
 pub type __u_int = ::std::os::raw::c_uint;
@@ -263,165 +306,246 @@ pub struct _EM_VAL {
 }
 pub type EM_VAL = *mut _EM_VAL;
 pub type TYPEID = *const ::std::os::raw::c_void;
+pub type GenericEnumValue = ::std::os::raw::c_int;
+pub type GenericFunction = *mut ::std::os::raw::c_void;
 extern "C" {
-    pub static mut BoolType: TYPEID;
-}
-extern "C" {
-    pub static mut IntType: TYPEID;
-}
-extern "C" {
-    pub static mut FloatType: TYPEID;
+    pub fn _embind_register_void(voidType: TYPEID, name: *const ::std::os::raw::c_char);
 }
 extern "C" {
-    pub static mut EmvalType: TYPEID;
-}
-pub const EM_METHOD_CALLER_KIND_FUNCTION: EM_METHOD_CALLER_KIND = 0;
-pub const EM_METHOD_CALLER_KIND_CONSTRUCTOR: EM_METHOD_CALLER_KIND = 1;
-pub type EM_METHOD_CALLER_KIND = ::std::os::raw::c_uint;
-pub const _EMVAL_UNDEFINED: _bindgen_ty_1 = 2;
-pub const _EMVAL_NULL: _bindgen_ty_1 = 4;
-pub const _EMVAL_TRUE: _bindgen_ty_1 = 6;
-pub const _EMVAL_FALSE: _bindgen_ty_1 = 8;
-pub const _EMVAL_LAST_RESERVED_HANDLE: _bindgen_ty_1 = 8;
-pub type _bindgen_ty_1 = ::std::os::raw::c_uint;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct _EM_DESTRUCTORS {
-    _unused: [u8; 0],
-}
-pub type EM_DESTRUCTORS = *mut _EM_DESTRUCTORS;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct _EM_METHOD_CALLER {
-    _unused: [u8; 0],
-}
-pub type EM_METHOD_CALLER = *mut _EM_METHOD_CALLER;
-pub type EM_GENERIC_WIRE_TYPE = f64;
-pub type EM_VAR_ARGS = *const ::std::os::raw::c_void;
-extern "C" {
-    pub fn _emval_register_symbol(arg1: *const ::std::os::raw::c_char);
+    pub fn _embind_register_bool(
+        boolType: TYPEID,
+        name: *const ::std::os::raw::c_char,
+        trueValue: bool,
+        falseValue: bool,
+    );
 }
 extern "C" {
-    pub fn _emval_incref(value: EM_VAL);
+    pub fn _embind_register_integer(
+        integerType: TYPEID,
+        name: *const ::std::os::raw::c_char,
+        size: usize,
+        minRange: i32,
+        maxRange: u32,
+    );
 }
 extern "C" {
-    pub fn _emval_decref(value: EM_VAL);
+    pub fn _embind_register_bigint(
+        integerType: TYPEID,
+        name: *const ::std::os::raw::c_char,
+        size: usize,
+        minRange: i64,
+        maxRange: u64,
+    );
 }
 extern "C" {
-    pub fn _emval_run_destructors(handle: EM_DESTRUCTORS);
+    pub fn _embind_register_float(
+        floatType: TYPEID,
+        name: *const ::std::os::raw::c_char,
+        size: usize,
+    );
 }
 extern "C" {
-    pub fn _emval_new_array() -> EM_VAL;
+    pub fn _embind_register_std_string(stringType: TYPEID, name: *const ::std::os::raw::c_char);
 }
 extern "C" {
-    pub fn _emval_new_array_from_memory_view(mv: EM_VAL) -> EM_VAL;
+    pub fn _embind_register_std_wstring(
+        stringType: TYPEID,
+        charSize: usize,
+        name: *const ::std::os::raw::c_char,
+    );
 }
 extern "C" {
-    pub fn _emval_new_object() -> EM_VAL;
+    pub fn _embind_register_emval(emvalType: TYPEID);
 }
 extern "C" {
-    pub fn _emval_new_cstring(arg1: *const ::std::os::raw::c_char) -> EM_VAL;
+    pub fn _embind_register_memory_view(
+        memoryViewType: TYPEID,
+        typedArrayIndex: ::std::os::raw::c_uint,
+        name: *const ::std::os::raw::c_char,
+    );
 }
 extern "C" {
-    pub fn _emval_new_u8string(arg1: *const ::std::os::raw::c_char) -> EM_VAL;
-}
-extern "C" {
-    pub fn _emval_new_u16string(arg1: *const u16) -> EM_VAL;
-}
-extern "C" {
-    pub fn _emval_take_value(type_: TYPEID, argv: EM_VAR_ARGS) -> EM_VAL;
-}
-extern "C" {
-    pub fn _emval_get_global(name: *const ::std::os::raw::c_char) -> EM_VAL;
-}
-extern "C" {
-    pub fn _emval_get_module_property(name: *const ::std::os::raw::c_char) -> EM_VAL;
-}
-extern "C" {
-    pub fn _emval_get_property(object: EM_VAL, key: EM_VAL) -> EM_VAL;
-}
-extern "C" {
-    pub fn _emval_set_property(object: EM_VAL, key: EM_VAL, value: EM_VAL);
-}
-extern "C" {
-    pub fn _emval_as(
-        value: EM_VAL,
-        returnType: TYPEID,
-        destructors: *mut EM_DESTRUCTORS,
-    ) -> EM_GENERIC_WIRE_TYPE;
-}
-extern "C" {
-    pub fn _emval_as_int64(value: EM_VAL, returnType: TYPEID) -> i64;
-}
-extern "C" {
-    pub fn _emval_as_uint64(value: EM_VAL, returnType: TYPEID) -> u64;
-}
-extern "C" {
-    pub fn _emval_equals(first: EM_VAL, second: EM_VAL) -> bool;
-}
-extern "C" {
-    pub fn _emval_strictly_equals(first: EM_VAL, second: EM_VAL) -> bool;
-}
-extern "C" {
-    pub fn _emval_greater_than(first: EM_VAL, second: EM_VAL) -> bool;
-}
-extern "C" {
-    pub fn _emval_less_than(first: EM_VAL, second: EM_VAL) -> bool;
-}
-extern "C" {
-    pub fn _emval_not(object: EM_VAL) -> bool;
-}
-extern "C" {
-    pub fn _emval_call(
-        caller: EM_METHOD_CALLER,
-        func: EM_VAL,
-        destructors: *mut EM_DESTRUCTORS,
-        argv: EM_VAR_ARGS,
-    ) -> EM_GENERIC_WIRE_TYPE;
-}
-extern "C" {
-    pub fn _emval_get_method_caller(
+    pub fn _embind_register_function(
+        name: *const ::std::os::raw::c_char,
         argCount: ::std::os::raw::c_uint,
         argTypes: *const TYPEID,
-        asCtor: EM_METHOD_CALLER_KIND,
-    ) -> EM_METHOD_CALLER;
+        signature: *const ::std::os::raw::c_char,
+        invoker: GenericFunction,
+        function: GenericFunction,
+        isAsync: bool,
+    );
 }
 extern "C" {
-    pub fn _emval_call_method(
-        caller: EM_METHOD_CALLER,
-        handle: EM_VAL,
+    pub fn _embind_register_value_array(
+        tupleType: TYPEID,
+        name: *const ::std::os::raw::c_char,
+        constructorSignature: *const ::std::os::raw::c_char,
+        constructor: GenericFunction,
+        destructorSignature: *const ::std::os::raw::c_char,
+        destructor: GenericFunction,
+    );
+}
+extern "C" {
+    pub fn _embind_register_value_array_element(
+        tupleType: TYPEID,
+        getterReturnType: TYPEID,
+        getterSignature: *const ::std::os::raw::c_char,
+        getter: GenericFunction,
+        getterContext: *mut ::std::os::raw::c_void,
+        setterArgumentType: TYPEID,
+        setterSignature: *const ::std::os::raw::c_char,
+        setter: GenericFunction,
+        setterContext: *mut ::std::os::raw::c_void,
+    );
+}
+extern "C" {
+    pub fn _embind_finalize_value_array(tupleType: TYPEID);
+}
+extern "C" {
+    pub fn _embind_register_value_object(
+        structType: TYPEID,
+        fieldName: *const ::std::os::raw::c_char,
+        constructorSignature: *const ::std::os::raw::c_char,
+        constructor: GenericFunction,
+        destructorSignature: *const ::std::os::raw::c_char,
+        destructor: GenericFunction,
+    );
+}
+extern "C" {
+    pub fn _embind_register_value_object_field(
+        structType: TYPEID,
+        fieldName: *const ::std::os::raw::c_char,
+        getterReturnType: TYPEID,
+        getterSignature: *const ::std::os::raw::c_char,
+        getter: GenericFunction,
+        getterContext: *mut ::std::os::raw::c_void,
+        setterArgumentType: TYPEID,
+        setterSignature: *const ::std::os::raw::c_char,
+        setter: GenericFunction,
+        setterContext: *mut ::std::os::raw::c_void,
+    );
+}
+extern "C" {
+    pub fn _embind_finalize_value_object(structType: TYPEID);
+}
+extern "C" {
+    pub fn _embind_register_class(
+        classType: TYPEID,
+        pointerType: TYPEID,
+        constPointerType: TYPEID,
+        baseClassType: TYPEID,
+        getActualTypeSignature: *const ::std::os::raw::c_char,
+        getActualType: GenericFunction,
+        upcastSignature: *const ::std::os::raw::c_char,
+        upcast: GenericFunction,
+        downcastSignature: *const ::std::os::raw::c_char,
+        downcast: GenericFunction,
+        className: *const ::std::os::raw::c_char,
+        destructorSignature: *const ::std::os::raw::c_char,
+        destructor: GenericFunction,
+    );
+}
+extern "C" {
+    pub fn _embind_register_class_constructor(
+        classType: TYPEID,
+        argCount: ::std::os::raw::c_uint,
+        argTypes: *const TYPEID,
+        invokerSignature: *const ::std::os::raw::c_char,
+        invoker: GenericFunction,
+        constructor: GenericFunction,
+    );
+}
+extern "C" {
+    pub fn _embind_register_class_function(
+        classType: TYPEID,
         methodName: *const ::std::os::raw::c_char,
-        destructors: *mut EM_DESTRUCTORS,
-        argv: EM_VAR_ARGS,
-    ) -> EM_GENERIC_WIRE_TYPE;
+        argCount: ::std::os::raw::c_uint,
+        argTypes: *const TYPEID,
+        invokerSignature: *const ::std::os::raw::c_char,
+        invoker: GenericFunction,
+        context: *mut ::std::os::raw::c_void,
+        isPureVirtual: ::std::os::raw::c_uint,
+        isAsync: bool,
+    );
 }
 extern "C" {
-    pub fn _emval_typeof(value: EM_VAL) -> EM_VAL;
+    pub fn _embind_register_class_property(
+        classType: TYPEID,
+        fieldName: *const ::std::os::raw::c_char,
+        getterReturnType: TYPEID,
+        getterSignature: *const ::std::os::raw::c_char,
+        getter: GenericFunction,
+        getterContext: *mut ::std::os::raw::c_void,
+        setterArgumentType: TYPEID,
+        setterSignature: *const ::std::os::raw::c_char,
+        setter: GenericFunction,
+        setterContext: *mut ::std::os::raw::c_void,
+    );
 }
 extern "C" {
-    pub fn _emval_instanceof(object: EM_VAL, constructor: EM_VAL) -> bool;
+    pub fn _embind_register_class_class_function(
+        classType: TYPEID,
+        methodName: *const ::std::os::raw::c_char,
+        argCount: ::std::os::raw::c_uint,
+        argTypes: *const TYPEID,
+        invokerSignature: *const ::std::os::raw::c_char,
+        invoker: GenericFunction,
+        method: GenericFunction,
+        isAsync: bool,
+    );
 }
 extern "C" {
-    pub fn _emval_is_number(object: EM_VAL) -> bool;
+    pub fn _embind_register_class_class_property(
+        classType: TYPEID,
+        fieldName: *const ::std::os::raw::c_char,
+        fieldType: TYPEID,
+        fieldContext: *const ::std::os::raw::c_void,
+        getterSignature: *const ::std::os::raw::c_char,
+        getter: GenericFunction,
+        setterSignature: *const ::std::os::raw::c_char,
+        setter: GenericFunction,
+    );
 }
 extern "C" {
-    pub fn _emval_is_string(object: EM_VAL) -> bool;
+    pub fn _embind_create_inheriting_constructor(
+        constructorName: *const ::std::os::raw::c_char,
+        wrapperType: TYPEID,
+        properties: EM_VAL,
+    ) -> EM_VAL;
 }
 extern "C" {
-    pub fn _emval_in(item: EM_VAL, object: EM_VAL) -> bool;
+    pub fn _embind_register_enum(
+        enumType: TYPEID,
+        name: *const ::std::os::raw::c_char,
+        size: usize,
+        isSigned: bool,
+    );
 }
 extern "C" {
-    pub fn _emval_delete(object: EM_VAL, property: EM_VAL) -> bool;
+    pub fn _embind_register_enum_value(
+        enumType: TYPEID,
+        valueName: *const ::std::os::raw::c_char,
+        value: GenericEnumValue,
+    );
 }
 extern "C" {
-    pub fn _emval_throw(object: EM_VAL) -> bool;
+    pub fn _embind_register_constant(
+        name: *const ::std::os::raw::c_char,
+        constantType: TYPEID,
+        value: f64,
+    );
 }
 extern "C" {
-    pub fn _emval_await(promise: EM_VAL) -> EM_VAL;
+    pub fn _embind_register_optional(optionalType: TYPEID, type_: TYPEID);
 }
 extern "C" {
-    pub fn _emval_iter_begin(iterable: EM_VAL) -> EM_VAL;
+    pub fn _embind_register_user_type(type_: TYPEID, typeName: *const ::std::os::raw::c_char);
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct InitFunc {
+    _unused: [u8; 0],
 }
 extern "C" {
-    pub fn _emval_iter_next(iterator: EM_VAL) -> EM_VAL;
+    pub fn _embind_register_bindings(f: *mut InitFunc);
 }

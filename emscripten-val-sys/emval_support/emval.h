@@ -11,11 +11,6 @@ typedef struct _EM_VAL *EM_VAL;
 
 typedef const void *TYPEID;
 
-extern TYPEID BoolType;
-extern TYPEID IntType;
-extern TYPEID FloatType;
-extern TYPEID EmvalType;
-
 enum EM_METHOD_CALLER_KIND {
   FUNCTION = 0,
   CONSTRUCTOR = 1,

@@ -37,10 +37,6 @@ static val func_to_val(std::function<val(T...)> &&func) {
     );
 }
 
-internal::TYPEID EmvalType = internal::TypeID<val>::get();
-internal::TYPEID BoolType  = internal::TypeID<bool>::get();
-internal::TYPEID IntType   = internal::TypeID<int>::get();
-internal::TYPEID FloatType = internal::TypeID<float>::get();
 
 extern "C" {
 EM_VAL emscripten_val_rust_caller0(void *data);
@@ -51,11 +47,11 @@ emscripten_val_rust_caller3(EM_VAL em0, EM_VAL em1, EM_VAL em2, void *data);
 EM_VAL emscripten_val_rust_caller4(
     EM_VAL em0, EM_VAL em1, EM_VAL em2, EM_VAL em3, void *data
 );
-
+internal::TYPEID EmvalType() { return internal::TypeID<val>::get(); }
 char *_emval_as_str(EM_VAL object) {
-    internal::_emval_incref(object);
     auto v = val::take_ownership(object);
     auto s = strdup(v.as<std::string>().c_str());
+    v.release_ownership();
     return s;
 }
 

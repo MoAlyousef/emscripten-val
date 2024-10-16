@@ -20,7 +20,7 @@ fn main() {
 
     let handle = run_script_int("let n = new Number('123'); Emval.toHandle(n)");
     let number = Val::take_ownership(handle as EM_VAL);
-    println!("{}", number.call("valueOf", &[]).as_i32());
+    println!("{}", number.call("valueOf", &[]).as_::<i32>());
 
     #[no_mangle]
     pub extern "C" fn event_handler(ev: EM_VAL) {
