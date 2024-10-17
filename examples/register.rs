@@ -2,13 +2,13 @@ use emscripten_val::{JsType, *};
 
 #[repr(C)]
 #[derive(Default, Clone)]
-struct MyClass {
+struct MyRustClass {
     v: i32,
 }
 
-impl JsType for MyClass {
-    fn id() -> TYPEID {
-        utils::get_type_id::<MyClass>()
+impl JsType for MyRustClass {
+    fn id() -> crate::TYPEID {
+        utils::get_type_id::<MyRustClass>()
     }
 
     fn from_generic_wire_type(v: GenericWireType) -> Self {
@@ -20,12 +20,19 @@ impl JsType for MyClass {
 }
 
 fn main() {
-    register_class::<MyClass>("MyClass");
-    register_class_default_constructor::<MyClass>();
-    register_class_property!(MyClass, "val", v, i32);
+        register_class::<MyRustClass>("MyRustClass");
+        register_class_default_constructor::<MyRustClass>();
+        register_class_property!(
+            MyRustClass,
+            "val",
+            v,
+            i32
+        );
+
+
     let global = Val::global("window");
 
-    global.set(&"myclass", &MyClass { v: 42 });
+    global.set(&"myclass", &MyRustClass { v: 42 });
     let myclass = global.get(&"myclass");
-    println!("{}", myclass.as_::<MyClass>().v);
+    println!("{}", myclass.as_::<MyRustClass>().v);
 }

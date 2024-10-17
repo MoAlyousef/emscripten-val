@@ -1,52 +1,66 @@
 use emscripten_val_sys::bind::*;
-use emscripten_val_sys::val;
 use std::sync::Once;
+use std::ffi::CString;
 
 use crate::utils::get_type_id;
 
 pub struct GenericWireType(pub f64);
 
 pub trait JsType {
-    fn id() -> val::TYPEID;
+    fn id() -> crate::TYPEID;
+    fn signature() -> char {
+        'p'
+    }
     fn from_generic_wire_type(v: GenericWireType) -> Self;
 }
 
 impl JsType for bool {
-    fn id() -> val::TYPEID {
+    fn id() -> crate::TYPEID {
         static INIT: Once = Once::new();
-        let v = get_type_id::<bool>();
-        static BOOL_ID: &str = "rust_bool\0";
+        let type_id = get_type_id::<bool>();
 
-        INIT.call_once(|| unsafe {
-            _embind_register_bool(v, BOOL_ID.as_ptr() as _, true, false);
-        });
-
-        v
+        unsafe {
+            INIT.call_once(|| {
+                let name = CString::new("rust_bool").unwrap();
+                _embind_register_bool(type_id, name.as_ptr(), true, false);
+            });
+            type_id
+        }
     }
+
+    fn signature() -> char {
+        'i'
+    }
+
     fn from_generic_wire_type(v: GenericWireType) -> Self {
         v.0 != 0f64
     }
 }
 
 macro_rules! register_rust_int {
-    ($t:ident) => {
+    ($t:ty, $name:expr) => {
         impl JsType for $t {
-            fn id() -> val::TYPEID {
+            fn id() -> crate::TYPEID {
                 static INIT: Once = Once::new();
-                let v = get_type_id::<$t>();
-                static INT_ID: &str = concat!("rust_", stringify!($t), "\0");
+                let type_id = get_type_id::<$t>();
 
-                INIT.call_once(|| unsafe {
-                    _embind_register_integer(
-                        v,
-                        INT_ID.as_ptr() as _,
-                        size_of::<$t>(),
-                        $t::MIN as _,
-                        $t::MAX as _,
-                    );
-                });
+                unsafe {
+                    INIT.call_once(|| {
+                        let name_cstr = CString::new($name).unwrap();
+                        _embind_register_integer(
+                            type_id,
+                            name_cstr.as_ptr(),
+                            std::mem::size_of::<$t>(),
+                            <$t>::MIN as _,
+                            <$t>::MAX as _,
+                        );
+                    });
+                    type_id
+                }
+            }
 
-                v
+            fn signature() -> char {
+                'i'
             }
 
             fn from_generic_wire_type(v: GenericWireType) -> Self {
@@ -57,18 +71,27 @@ macro_rules! register_rust_int {
 }
 
 macro_rules! register_rust_float {
-    ($t:ident) => {
+    ($t:ty, $name:expr) => {
         impl JsType for $t {
-            fn id() -> val::TYPEID {
+            fn id() -> crate::TYPEID {
                 static INIT: Once = Once::new();
-                let v = get_type_id::<$t>();
-                static DOUBLE_ID: &str = concat!("rust_", stringify!($t), "\0");
+                let type_id = get_type_id::<$t>();
 
-                INIT.call_once(|| unsafe {
-                    _embind_register_float(v, DOUBLE_ID.as_ptr() as _, size_of::<$t>());
-                });
+                unsafe {
+                    INIT.call_once(|| {
+                        let name_cstr = CString::new($name).unwrap();
+                        _embind_register_float(
+                            type_id,
+                            name_cstr.as_ptr(),
+                            std::mem::size_of::<$t>()
+                        );
+                    });
+                    type_id
+                }
+            }
 
-                v
+            fn signature() -> char {
+                'd'
             }
 
             fn from_generic_wire_type(v: GenericWireType) -> Self {
@@ -78,13 +101,13 @@ macro_rules! register_rust_float {
     };
 }
 
-register_rust_int!(u8);
-register_rust_int!(u16);
-register_rust_int!(u32);
-register_rust_int!(i8);
-register_rust_int!(i16);
-register_rust_int!(i32);
-register_rust_int!(usize);
-register_rust_int!(isize);
-register_rust_float!(f32);
-register_rust_float!(f64);
+register_rust_int!(u8, "rust_u8");
+register_rust_int!(u16, "rust_u16");
+register_rust_int!(u32, "rust_u32");
+register_rust_int!(i8, "rust_i8");
+register_rust_int!(i16, "rust_i16");
+register_rust_int!(i32, "rust_i32");
+register_rust_int!(usize, "rust_usize");
+register_rust_int!(isize, "rust_isize");
+register_rust_float!(f32, "rust_f32");
+register_rust_float!(f64, "rust_f64");
