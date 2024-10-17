@@ -50,19 +50,21 @@ pub fn register_class<T: 'static>(name: &str) {
 }
 
 pub fn register_class_default_constructor<T: 'static + Default>() {
-    extern "C" fn invoker(f: extern "C" fn() -> *mut c_void) -> *mut c_void {
-        f()
+    extern fn invoker<T: Default>(ptr: *const ()) -> *mut T {
+        let ptr: fn() -> T = unsafe { std::mem::transmute(ptr) };
+        let obj = unsafe { Box::new(ptr()) };
+        Box::into_raw(obj) as _
     }
 
     unsafe {
-        let arg_types = [TypeId::of::<*mut T>()];
+        let arg_types = [get_type_id::<*mut T>()];
         _embind_register_class_constructor(
             get_type_id::<T>(),
             arg_types.len() as u32,
             arg_types.as_ptr() as _,
-            "ii\0".as_ptr() as _,
-            invoker as _,
-            std::mem::transmute(Box::<T>::default as fn() -> Box<_>),
+            "pp\0".as_ptr() as _,
+            invoker::<T> as _,
+            T::default as _,
         )
     }
 }
