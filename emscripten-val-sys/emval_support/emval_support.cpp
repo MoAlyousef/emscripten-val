@@ -51,7 +51,23 @@ EM_VAL emscripten_val_rust_caller4(
 internal::TYPEID EmvalType() { return internal::TypeID<val>::get(); }
 char *_emval_as_str(EM_VAL object) {
     auto v = val::take_ownership(object);
-    auto s = strdup(v.as<std::string>().c_str());
+    
+    // Check if the value is null or undefined
+    if (v.isNull() || v.isUndefined()) {
+        v.release_ownership();
+        return strdup(""); // Return empty string for null/undefined
+    }
+    
+    // If it's already a string, use it directly
+    if (v.isString()) {
+        auto s = strdup(v.as<std::string>().c_str());
+        v.release_ownership();
+        return s;
+    }
+    
+    // For other types, convert to string using JavaScript's toString
+    auto str_val = v.call<val>("toString");
+    auto s = strdup(str_val.as<std::string>().c_str());
     v.release_ownership();
     return s;
 }

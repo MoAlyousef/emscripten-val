@@ -124,20 +124,32 @@ impl Val {
                 typeids.as_ptr() as _, 
                 val::EM_INVOKER_KIND_METHOD
             );
-            // Prepare handles array for arguments
-            let handles: Vec<EM_VAL> = args.iter().map(|arg| arg.handle).collect();
+            
             for arg in args {
                 val::_emval_incref(arg.handle);
             }
+
             let ret = val::_emval_invoke(
                 caller,
                 self.handle,
                 f.as_ptr() as _,
                 std::ptr::null_mut(),
-                handles.as_ptr() as _,
+                *(args.as_ptr() as *const *const ()) as _,
             );
-            let ret = ret as u32 as EM_VAL;
-            Val::take_ownership(ret)
+            
+            // For Val return types, the wire type contains the handle encoded as double
+            let ret_wire = crate::id::GenericWireType(ret);
+            let ret_handle = ret_wire.0 as usize as EM_VAL;
+            
+            // Check for reserved handles - these don't need reference counting
+            let handle_value = ret_handle as usize;
+            if handle_value <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
+                // Reserved handle - use directly without take_ownership
+                Val { handle: ret_handle }
+            } else {
+                // Regular handle - use take_ownership
+                Val::take_ownership(ret_handle)
+            }
         }
     }
 
@@ -278,20 +290,31 @@ impl Val {
                 typeids.as_ptr() as _, 
                 val::EM_INVOKER_KIND_CONSTRUCTOR
             );
-            // Prepare handles array for arguments
-            let handles: Vec<EM_VAL> = args.iter().map(|arg| arg.handle).collect();
             for arg in args {
                 val::_emval_incref(arg.handle);
             }
+            
             let ret = val::_emval_invoke(
                 caller,
                 self.handle,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
-                handles.as_ptr() as _,
+                *(args.as_ptr() as *const *const ()) as _,
             );
-            let ret = ret as u32 as EM_VAL;
-            Val::take_ownership(ret)
+            
+            // For Val return types, the wire type contains the handle encoded as double
+            let ret_wire = crate::id::GenericWireType(ret);
+            let ret_handle = ret_wire.0 as usize as EM_VAL;
+            
+            // Check for reserved handles - these don't need reference counting
+            let handle_value = ret_handle as usize;
+            if handle_value <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
+                // Reserved handle - use directly without take_ownership
+                Val { handle: ret_handle }
+            } else {
+                // Regular handle - use take_ownership
+                Val::take_ownership(ret_handle)
+            }
         }
     }
 

@@ -19,5 +19,5 @@ fn main() {
             })
         ],
     );
-    body.call("appendChild", argv![elem]);
+    body.call("appendChild", &[&elem]);
 }
