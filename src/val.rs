@@ -170,8 +170,21 @@ impl Val {
 
     /// Generate a Val object from a type implementing JsType
     pub fn from_<T: JsType>(v: T) -> Self {
-        Self {
-            handle: unsafe { val::_emval_take_value(T::id(), [v].as_ptr() as _) },
+        unsafe {
+            // For pointer-like/user types (default signature 'p'), embind expects a
+            // pointer value read from memory (i.e., argv points to a location that
+            // contains the raw pointer). To ensure correct lifetime, allocate on the heap
+            // and pass a pointer to that pointer. For primitive types ('i', 'd'), pass
+            // a pointer to the value directly.
+            let handle = match T::signature() {
+                'p' => {
+                    let boxed = Box::new(v);
+                    let mut ptr: *mut T = Box::into_raw(boxed);
+                    val::_emval_take_value(T::id(), (&mut ptr as *mut *mut T) as _)
+                }
+                _ => val::_emval_take_value(T::id(), (&v as *const T) as _),
+            };
+            Self { handle }
         }
     }
 

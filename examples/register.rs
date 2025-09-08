@@ -12,9 +12,11 @@ impl JsType for MyRustClass {
     }
 
     fn from_generic_wire_type(v: GenericWireType) -> Self {
-        unsafe {
-            let ptr = v.0 as usize as *const usize;
-            std::mem::transmute(ptr)
+        let ptr = v.0 as usize as *const MyRustClass;
+        if ptr.is_null() {
+            Default::default()
+        } else {
+            unsafe { (*ptr).clone() }
         }
     }
 }

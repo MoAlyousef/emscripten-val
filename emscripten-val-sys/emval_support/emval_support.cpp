@@ -83,52 +83,63 @@ void _emval_add_event_listener(EM_VAL em, const char *name, void *data) {
     v.release_ownership();
 }
 
-// Replacement for the removed _emval_take_value function
-EM_VAL _emval_take_value(emscripten::internal::TYPEID type, emscripten::internal::EM_VAR_ARGS argv) {
-    // Since Rust registers its own type IDs (like "rust_i32"), we can't match them exactly
-    // Instead, we'll use a simpler approach: assume it's an integer value first
-    // This works because most primitive conversions go through integers
-    
-    // Try to interpret as a 32-bit integer (covers i32, u32, etc.)
-    int32_t* ptr32 = static_cast<int32_t*>(const_cast<void*>(argv));
-    int32_t value = *ptr32;
-    
-    // Create a val from the integer value
-    return val(value).release_ownership();
-}
+// Implementations that delegate to Embind's JS type registry so that
+// user-registered types (classes, pointers, strings, etc.) are handled
+// correctly. These use EM_JS to interact with the JS runtime.
 
-// Replacement for the removed _emval_as function
-emscripten::internal::EM_GENERIC_WIRE_TYPE _emval_as(EM_VAL value, emscripten::internal::TYPEID returnType, emscripten::internal::EM_DESTRUCTORS* destructors) {
-    (void)destructors;
-    (void)returnType; // We can't easily match Rust's custom type IDs
-    
-    auto v = val::take_ownership(value);
-    
-    // Since we can't match Rust's custom type IDs (like "rust_i32"), 
-    // we'll use a generic approach: try to convert to number first
-    if (v.isNumber()) {
-        // For numeric conversions, get as double and return it
-        double result = v.as<double>();
-        v.release_ownership();
-        return result;
-    } else if (v.as<bool>() == true || v.as<bool>() == false) {
-        // Handle booleans
-        bool result = v.as<bool>();
-        v.release_ownership();
-        return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(result ? 1.0 : 0.0);
-    } else if (v.isString()) {
-        // Handle strings (though this is complex)
-        std::string result = v.as<std::string>();
-        v.release_ownership();
-        char* str_ptr = strdup(result.c_str());
-        uintptr_t ptr_value = reinterpret_cast<uintptr_t>(str_ptr);
-        return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(ptr_value);
+extern "C" {
+EM_JS(EM_VAL, _emval_take_value,
+      (emscripten::internal::TYPEID type,
+       emscripten::internal::EM_VAR_ARGS argv), {
+  try {
+    var t = registeredTypes[type];
+    if (!t) {
+      // As a last resort, treat as a double read. This covers simple numbers
+      // but won't help complex/user types. Better to fail loudly in dev.
+      // console.warn('_emval_take_value: unknown type id', type);
+      return Emval.toHandle(HEAPF64[(argv>>3)]);
     }
-    
-    // For unknown types, try as number anyway
-    double result = v.as<double>();
-    v.release_ownership();
-    return result;
+    // Obtain the JS value directly using the registered type's reader
+    var jsValue = t.readValueFromPointer(argv);
+    return Emval.toHandle(jsValue);
+  } catch (e) {
+    console.error('_emval_take_value exception:', e);
+    return 0;
+  }
+});
+
+EM_JS(emscripten::internal::EM_GENERIC_WIRE_TYPE, _emval_as,
+      (EM_VAL value,
+       emscripten::internal::TYPEID returnType,
+       emscripten::internal::EM_DESTRUCTORS* destructors), {
+  try {
+    var t = registeredTypes[returnType];
+    var jsValue = Emval.toValue(value);
+    var d = [];
+    var out;
+    if (t) {
+      out = t.toWireType(d, jsValue);
+    } else {
+      // Fallback heuristics for primitives if type isn't known
+      if (typeof jsValue === 'number') out = +jsValue;
+      else if (typeof jsValue === 'boolean') out = jsValue ? 1 : 0;
+      else if (jsValue == null) out = 0;
+      else {
+        // Unknown and non-primitive
+        // console.warn('_emval_as: unknown return type id', returnType, 'for value', jsValue);
+        out = 0;
+      }
+    }
+    if (destructors) {
+      HEAPU32[(destructors>>2)] = d.length ? Emval.toHandle(d) : 0;
+    }
+    return out;
+  } catch (e) {
+    console.error('_emval_as exception:', e);
+    if (destructors) HEAPU32[(destructors>>2)] = 0;
+    return 0;
+  }
+});
 }
 
 // Implementations for specialized int64/uint64 functions

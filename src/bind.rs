@@ -73,27 +73,23 @@ pub fn register_class_default_constructor<T: 'static + Default>() {
 macro_rules! register_class_property {
     ($cls:ty, $name:literal, $member:ident, $membertype:ty) => {{
         let f = || unsafe {
-            extern "C" fn getter(ptr: *const $cls) -> $membertype {
-                unsafe {
-                    (*ptr).$member
-                }
+            extern "C" fn getter(_ctx: *mut (), ptr: *const $cls) -> $membertype {
+                unsafe { (*ptr).$member }
             }
 
-            extern "C" fn setter(ptr: *mut $cls, value: $membertype) {
-                unsafe {
-                    (*ptr).$member = value;
-                }
+            extern "C" fn setter(_ctx: *mut (), ptr: *mut $cls, value: $membertype) {
+                unsafe { (*ptr).$member = value; }
             }
 
             let cname = std::ffi::CString::new($name).unwrap();
 
             let getter_signature = concat!(
                 stringify!(<$membertype>::signature()),
-                "p\0"
+                "pp\0"
             );
 
             let setter_signature = concat!(
-                "vp",
+                "vpp",
                 stringify!(<$membertype>::signature()),
                 "\0"
             );
