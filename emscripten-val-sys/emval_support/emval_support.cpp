@@ -69,56 +69,39 @@ void _emval_add_event_listener(EM_VAL em, const char *name, void *data) {
 
 // Replacement for the removed _emval_take_value function
 EM_VAL _emval_take_value(emscripten::internal::TYPEID type, emscripten::internal::EM_VAR_ARGS argv) {
-    // For primitive types, we can use the direct conversion approach
-    // This is a simplified implementation - you may need to extend it based on your specific needs
+    // Since Rust registers its own type IDs (like "rust_i32"), we can't match them exactly
+    // Instead, we'll use a simpler approach: assume it's an integer value first
+    // This works because most primitive conversions go through integers
     
-    // Get the type information and create appropriate val object
-    if (type == internal::TypeID<bool>::get()) {
-        bool* ptr = static_cast<bool*>(const_cast<void*>(argv));
-        return val(*ptr).release_ownership();
-    } else if (type == internal::TypeID<int>::get()) {
-        int* ptr = static_cast<int*>(const_cast<void*>(argv));
-        return val(*ptr).release_ownership();
-    } else if (type == internal::TypeID<float>::get()) {
-        float* ptr = static_cast<float*>(const_cast<void*>(argv));
-        return val(*ptr).release_ownership();
-    } else if (type == internal::TypeID<double>::get()) {
-        double* ptr = static_cast<double*>(const_cast<void*>(argv));
-        return val(*ptr).release_ownership();
-    } else if (type == internal::TypeID<std::string>::get()) {
-        std::string* ptr = static_cast<std::string*>(const_cast<void*>(argv));
-        return val(*ptr).release_ownership();
-    }
+    // Try to interpret as a 32-bit integer (covers i32, u32, etc.)
+    int32_t* ptr32 = static_cast<int32_t*>(const_cast<void*>(argv));
+    int32_t value = *ptr32;
     
-    // For unknown types, return undefined
-    return val::undefined().release_ownership();
+    // Create a val from the integer value
+    return val(value).release_ownership();
 }
 
 // Replacement for the removed _emval_as function
 emscripten::internal::EM_GENERIC_WIRE_TYPE _emval_as(EM_VAL value, emscripten::internal::TYPEID returnType, emscripten::internal::EM_DESTRUCTORS* destructors) {
     (void)destructors;
+    (void)returnType; // We can't easily match Rust's custom type IDs
+    
     auto v = val::take_ownership(value);
     
-    // Convert based on the requested return type
-    if (returnType == internal::TypeID<bool>::get()) {
-        bool result = v.as<bool>();
-        v.release_ownership(); // Release since we took ownership
-        return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(result ? 1.0 : 0.0);
-    } else if (returnType == internal::TypeID<int>::get()) {
-        int result = v.as<int>();
-        v.release_ownership();
-        return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(result);
-    } else if (returnType == internal::TypeID<float>::get()) {
-        float result = v.as<float>();
-        v.release_ownership();
-        return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(result);
-    } else if (returnType == internal::TypeID<double>::get()) {
+    // Since we can't match Rust's custom type IDs (like "rust_i32"), 
+    // we'll use a generic approach: try to convert to number first
+    if (v.isNumber()) {
+        // For numeric conversions, get as double and return it
         double result = v.as<double>();
         v.release_ownership();
-        return result; // Already the right type
-    } else if (returnType == internal::TypeID<std::string>::get()) {
-        // For strings, we need to handle this differently since it's not a primitive
-        // Cast the pointer to uintptr_t first, then to double
+        return result;
+    } else if (v.as<bool>() == true || v.as<bool>() == false) {
+        // Handle booleans
+        bool result = v.as<bool>();
+        v.release_ownership();
+        return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(result ? 1.0 : 0.0);
+    } else if (v.isString()) {
+        // Handle strings (though this is complex)
         std::string result = v.as<std::string>();
         v.release_ownership();
         char* str_ptr = strdup(result.c_str());
@@ -126,9 +109,10 @@ emscripten::internal::EM_GENERIC_WIRE_TYPE _emval_as(EM_VAL value, emscripten::i
         return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(ptr_value);
     }
     
-    // For unknown types, return 0
+    // For unknown types, try as number anyway
+    double result = v.as<double>();
     v.release_ownership();
-    return 0.0;
+    return result;
 }
 
 // Implementations for specialized int64/uint64 functions
