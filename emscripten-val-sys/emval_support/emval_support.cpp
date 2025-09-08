@@ -4,6 +4,7 @@
 #include <emscripten/val.h>
 #include <string.h>
 #include <string>
+#include <cstdint>
 
 using namespace emscripten;
 
@@ -64,6 +65,105 @@ void _emval_add_event_listener(EM_VAL em, const char *name, void *data) {
     }));
     v.call<void>("addEventListener", std::string(name), func);
     v.release_ownership();
+}
+
+// Replacement for the removed _emval_take_value function
+EM_VAL _emval_take_value(emscripten::internal::TYPEID type, emscripten::internal::EM_VAR_ARGS argv) {
+    // For primitive types, we can use the direct conversion approach
+    // This is a simplified implementation - you may need to extend it based on your specific needs
+    
+    // Get the type information and create appropriate val object
+    if (type == internal::TypeID<bool>::get()) {
+        bool* ptr = static_cast<bool*>(const_cast<void*>(argv));
+        return val(*ptr).release_ownership();
+    } else if (type == internal::TypeID<int>::get()) {
+        int* ptr = static_cast<int*>(const_cast<void*>(argv));
+        return val(*ptr).release_ownership();
+    } else if (type == internal::TypeID<float>::get()) {
+        float* ptr = static_cast<float*>(const_cast<void*>(argv));
+        return val(*ptr).release_ownership();
+    } else if (type == internal::TypeID<double>::get()) {
+        double* ptr = static_cast<double*>(const_cast<void*>(argv));
+        return val(*ptr).release_ownership();
+    } else if (type == internal::TypeID<std::string>::get()) {
+        std::string* ptr = static_cast<std::string*>(const_cast<void*>(argv));
+        return val(*ptr).release_ownership();
+    }
+    
+    // For unknown types, return undefined
+    return val::undefined().release_ownership();
+}
+
+// Replacement for the removed _emval_as function
+emscripten::internal::EM_GENERIC_WIRE_TYPE _emval_as(EM_VAL value, emscripten::internal::TYPEID returnType, emscripten::internal::EM_DESTRUCTORS* destructors) {
+    (void)destructors;
+    auto v = val::take_ownership(value);
+    
+    // Convert based on the requested return type
+    if (returnType == internal::TypeID<bool>::get()) {
+        bool result = v.as<bool>();
+        v.release_ownership(); // Release since we took ownership
+        return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(result ? 1.0 : 0.0);
+    } else if (returnType == internal::TypeID<int>::get()) {
+        int result = v.as<int>();
+        v.release_ownership();
+        return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(result);
+    } else if (returnType == internal::TypeID<float>::get()) {
+        float result = v.as<float>();
+        v.release_ownership();
+        return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(result);
+    } else if (returnType == internal::TypeID<double>::get()) {
+        double result = v.as<double>();
+        v.release_ownership();
+        return result; // Already the right type
+    } else if (returnType == internal::TypeID<std::string>::get()) {
+        // For strings, we need to handle this differently since it's not a primitive
+        // Cast the pointer to uintptr_t first, then to double
+        std::string result = v.as<std::string>();
+        v.release_ownership();
+        char* str_ptr = strdup(result.c_str());
+        uintptr_t ptr_value = reinterpret_cast<uintptr_t>(str_ptr);
+        return static_cast<emscripten::internal::EM_GENERIC_WIRE_TYPE>(ptr_value);
+    }
+    
+    // For unknown types, return 0
+    v.release_ownership();
+    return 0.0;
+}
+
+// Implementations for specialized int64/uint64 functions
+int64_t _emval_as_int64(EM_VAL value, emscripten::internal::TYPEID returnType) {
+    auto v = val::take_ownership(value);
+    int64_t result = 0;
+    
+    if (returnType == internal::TypeID<int64_t>::get()) {
+        result = v.as<int64_t>();
+    } else if (returnType == internal::TypeID<long>::get()) {
+        result = static_cast<int64_t>(v.as<long>());
+    } else {
+        // Fallback to regular int conversion
+        result = static_cast<int64_t>(v.as<int>());
+    }
+    
+    v.release_ownership();
+    return result;
+}
+
+uint64_t _emval_as_uint64(EM_VAL value, emscripten::internal::TYPEID returnType) {
+    auto v = val::take_ownership(value);
+    uint64_t result = 0;
+    
+    if (returnType == internal::TypeID<uint64_t>::get()) {
+        result = v.as<uint64_t>();
+    } else if (returnType == internal::TypeID<unsigned long>::get()) {
+        result = static_cast<uint64_t>(v.as<unsigned long>());
+    } else {
+        // Fallback to regular unsigned int conversion
+        result = static_cast<uint64_t>(v.as<unsigned int>());
+    }
+    
+    v.release_ownership();
+    return result;
 }
 
 EM_VAL _emval_take_fn(unsigned char argcount, void *data) {

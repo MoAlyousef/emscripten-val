@@ -8,12 +8,14 @@ extern "C" {
 #endif
 
 typedef struct _EM_VAL *EM_VAL;
-
+typedef struct _EM_INVOKER* EM_INVOKER;
 typedef const void *TYPEID;
 
-enum EM_METHOD_CALLER_KIND {
-  FUNCTION = 0,
-  CONSTRUCTOR = 1,
+enum class EM_INVOKER_KIND {
+  FUNCTION,
+  METHOD,
+  CONSTRUCTOR,
+  CAST,
 };
 
 enum {
@@ -60,18 +62,17 @@ bool _emval_greater_than(EM_VAL first, EM_VAL second);
 bool _emval_less_than(EM_VAL first, EM_VAL second);
 bool _emval_not(EM_VAL object);
 
-EM_GENERIC_WIRE_TYPE _emval_call(EM_METHOD_CALLER caller, EM_VAL func,
-                                 EM_DESTRUCTORS *destructors, EM_VAR_ARGS argv);
+EM_INVOKER _emval_create_invoker(
+    unsigned argCount, // including return value
+    const TYPEID argTypes[],
+    EM_INVOKER_KIND kind);
+EM_GENERIC_WIRE_TYPE _emval_invoke(
+    EM_INVOKER caller,
+    EM_VAL handle,
+    const char* methodName,
+    EM_DESTRUCTORS* destructors,
+    EM_VAR_ARGS argv);
 
-// DO NOT call this more than once per signature. It will
-// leak generated function objects!
-EM_METHOD_CALLER
-_emval_get_method_caller(unsigned argCount, // including return value
-                         const TYPEID argTypes[], EM_METHOD_CALLER_KIND asCtor);
-EM_GENERIC_WIRE_TYPE _emval_call_method(EM_METHOD_CALLER caller, EM_VAL handle,
-                                        const char *methodName,
-                                        EM_DESTRUCTORS *destructors,
-                                        EM_VAR_ARGS argv);
 EM_VAL _emval_typeof(EM_VAL value);
 bool _emval_instanceof(EM_VAL object, EM_VAL constructor);
 bool _emval_is_number(EM_VAL object);

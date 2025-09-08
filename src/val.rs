@@ -119,17 +119,22 @@ impl Val {
         unsafe {
             let typeids = vec![Val::id(); args.len() + 1];
             let f = CString::new(f).unwrap();
-            let caller =
-                val::_emval_get_method_caller(typeids.len() as u32, typeids.as_ptr() as _, 0);
+            let caller = val::_emval_create_invoker(
+                typeids.len() as u32, 
+                typeids.as_ptr() as _, 
+                val::EM_INVOKER_KIND_METHOD
+            );
+            // Prepare handles array for arguments
+            let handles: Vec<EM_VAL> = args.iter().map(|arg| arg.handle).collect();
             for arg in args {
                 val::_emval_incref(arg.handle);
             }
-            let ret = val::_emval_call_method(
+            let ret = val::_emval_invoke(
                 caller,
                 self.handle,
                 f.as_ptr() as _,
                 std::ptr::null_mut(),
-                *(args.as_ptr() as *const *const ()) as _,
+                handles.as_ptr() as _,
             );
             let ret = ret as u32 as EM_VAL;
             Val::take_ownership(ret)
@@ -268,16 +273,22 @@ impl Val {
     pub fn new(&self, args: &[&Val]) -> Val {
         unsafe {
             let typeids = vec![Val::id(); args.len() + 1];
-            let caller =
-                val::_emval_get_method_caller(typeids.len() as u32, typeids.as_ptr() as _, 1);
+            let caller = val::_emval_create_invoker(
+                typeids.len() as u32, 
+                typeids.as_ptr() as _, 
+                val::EM_INVOKER_KIND_CONSTRUCTOR
+            );
+            // Prepare handles array for arguments
+            let handles: Vec<EM_VAL> = args.iter().map(|arg| arg.handle).collect();
             for arg in args {
                 val::_emval_incref(arg.handle);
             }
-            let ret = val::_emval_call(
+            let ret = val::_emval_invoke(
                 caller,
                 self.handle,
                 std::ptr::null_mut(),
-                *(args.as_ptr() as *const *const ()) as _,
+                std::ptr::null_mut(),
+                handles.as_ptr() as _,
             );
             let ret = ret as u32 as EM_VAL;
             Val::take_ownership(ret)
