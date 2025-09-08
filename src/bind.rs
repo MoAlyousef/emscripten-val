@@ -1,7 +1,5 @@
 use emscripten_val_sys::bind::*;
-use std::any::TypeId;
 use std::ffi::CString;
-use std::os::raw::*;
 
 use crate::utils::get_type_id;
 pub use emscripten_val_sys::bind::_embind_register_class_property;
@@ -50,9 +48,9 @@ pub fn register_class<T: 'static>(name: &str) {
 }
 
 pub fn register_class_default_constructor<T: 'static + Default>() {
-    extern fn invoker<T: Default>(ptr: *const ()) -> *mut T {
+    extern "C" fn invoker<T: Default>(ptr: *const ()) -> *mut T {
         let ptr: fn() -> T = unsafe { std::mem::transmute(ptr) };
-        let obj = unsafe { Box::new(ptr()) };
+        let obj = Box::new(ptr());
         Box::into_raw(obj) as _
     }
 
