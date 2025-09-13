@@ -1,3 +1,4 @@
+#![allow(clippy::manual_c_str_literals)]
 use emscripten_val_sys::bind::*;
 use std::ffi::CString;
 
@@ -76,21 +77,16 @@ macro_rules! register_class_property {
             }
 
             extern "C" fn setter(_ctx: *mut (), ptr: *mut $cls, value: $membertype) {
-                unsafe { (*ptr).$member = value; }
+                unsafe {
+                    (*ptr).$member = value;
+                }
             }
 
             let cname = std::ffi::CString::new($name).unwrap();
 
-            let getter_signature = concat!(
-                stringify!(<$membertype>::signature()),
-                "pp\0"
-            );
+            let getter_signature = concat!(stringify!(<$membertype>::signature()), "pp\0");
 
-            let setter_signature = concat!(
-                "vpp",
-                stringify!(<$membertype>::signature()),
-                "\0"
-            );
+            let setter_signature = concat!("vpp", stringify!(<$membertype>::signature()), "\0");
 
             _embind_register_class_property(
                 $crate::utils::get_type_id::<$cls>(),

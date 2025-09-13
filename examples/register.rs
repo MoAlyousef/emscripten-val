@@ -22,15 +22,9 @@ impl JsType for MyRustClass {
 }
 
 fn main() {
-        register_class::<MyRustClass>("MyRustClass");
-        register_class_default_constructor::<MyRustClass>();
-        register_class_property!(
-            MyRustClass,
-            "val",
-            v,
-            i32
-        );
-
+    register_class::<MyRustClass>("MyRustClass");
+    register_class_default_constructor::<MyRustClass>();
+    register_class_property!(MyRustClass, "val", v, i32);
 
     let global = Val::global("window");
 

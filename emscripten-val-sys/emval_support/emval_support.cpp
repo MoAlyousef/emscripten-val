@@ -52,20 +52,17 @@ internal::TYPEID EmvalType() { return internal::TypeID<val>::get(); }
 char *_emval_as_str(EM_VAL object) {
     auto v = val::take_ownership(object);
     
-    // Check if the value is null or undefined
     if (v.isNull() || v.isUndefined()) {
         v.release_ownership();
-        return strdup(""); // Return empty string for null/undefined
+        return strdup("");
     }
     
-    // If it's already a string, use it directly
     if (v.isString()) {
         auto s = strdup(v.as<std::string>().c_str());
         v.release_ownership();
         return s;
     }
     
-    // For other types, convert to string using JavaScript's toString
     auto str_val = v.call<val>("toString");
     auto s = strdup(str_val.as<std::string>().c_str());
     v.release_ownership();
@@ -83,23 +80,14 @@ void _emval_add_event_listener(EM_VAL em, const char *name, void *data) {
     v.release_ownership();
 }
 
-// Implementations that delegate to Embind's JS type registry so that
-// user-registered types (classes, pointers, strings, etc.) are handled
-// correctly. These use EM_JS to interact with the JS runtime.
-
-extern "C" {
 EM_JS(EM_VAL, _emval_take_value,
       (emscripten::internal::TYPEID type,
        emscripten::internal::EM_VAR_ARGS argv), {
   try {
     var t = registeredTypes[type];
     if (!t) {
-      // As a last resort, treat as a double read. This covers simple numbers
-      // but won't help complex/user types. Better to fail loudly in dev.
-      // console.warn('_emval_take_value: unknown type id', type);
       return Emval.toHandle(HEAPF64[(argv>>3)]);
     }
-    // Obtain the JS value directly using the registered type's reader
     var jsValue = t.readValueFromPointer(argv);
     return Emval.toHandle(jsValue);
   } catch (e) {
@@ -120,13 +108,10 @@ EM_JS(emscripten::internal::EM_GENERIC_WIRE_TYPE, _emval_as,
     if (t) {
       out = t.toWireType(d, jsValue);
     } else {
-      // Fallback heuristics for primitives if type isn't known
       if (typeof jsValue === 'number') out = +jsValue;
       else if (typeof jsValue === 'boolean') out = jsValue ? 1 : 0;
       else if (jsValue == null) out = 0;
       else {
-        // Unknown and non-primitive
-        // console.warn('_emval_as: unknown return type id', returnType, 'for value', jsValue);
         out = 0;
       }
     }
@@ -140,9 +125,7 @@ EM_JS(emscripten::internal::EM_GENERIC_WIRE_TYPE, _emval_as,
     return 0;
   }
 });
-}
 
-// Implementations for specialized int64/uint64 functions
 int64_t _emval_as_int64(EM_VAL value, emscripten::internal::TYPEID returnType) {
     auto v = val::take_ownership(value);
     int64_t result = 0;
@@ -152,7 +135,6 @@ int64_t _emval_as_int64(EM_VAL value, emscripten::internal::TYPEID returnType) {
     } else if (returnType == internal::TypeID<long>::get()) {
         result = static_cast<int64_t>(v.as<long>());
     } else {
-        // Fallback to regular int conversion
         result = static_cast<int64_t>(v.as<int>());
     }
     
@@ -169,7 +151,6 @@ uint64_t _emval_as_uint64(EM_VAL value, emscripten::internal::TYPEID returnType)
     } else if (returnType == internal::TypeID<unsigned long>::get()) {
         result = static_cast<uint64_t>(v.as<unsigned long>());
     } else {
-        // Fallback to regular unsigned int conversion
         result = static_cast<uint64_t>(v.as<unsigned int>());
     }
     
@@ -231,4 +212,61 @@ EM_VAL _emval_take_fn(unsigned char argcount, void *data) {
     }
     return func.release_ownership();
 }
+
+EM_JS(EM_VAL, _emval_call_method_raw,
+      (EM_VAL object,
+       const char* methodName,
+       EM_VAL* argv,
+       int argc), {
+  try {
+    var obj = Emval.toValue(object);
+    var name = UTF8ToString(methodName);
+    var fn = obj[name];
+    var args = new Array(argc);
+    for (var i = 0; i < argc; i++) {
+      args[i] = Emval.toValue(HEAPU32[(argv>>2) + i]);
+    }
+    var ret = fn.apply(obj, args);
+    return Emval.toHandle(ret);
+  } catch (e) {
+    console.error('_emval_call_method_raw error:', e);
+    return 0;
+  }
+});
+
+EM_JS(EM_VAL, _emval_construct_raw,
+      (EM_VAL constructor,
+       EM_VAL* argv,
+       int argc), {
+  try {
+    var C = Emval.toValue(constructor);
+    var args = new Array(argc);
+    for (var i = 0; i < argc; i++) {
+      args[i] = Emval.toValue(HEAPU32[(argv>>2) + i]);
+    }
+    var ret = new (Function.prototype.bind.apply(C, [null].concat(args)))();
+    return Emval.toHandle(ret);
+  } catch (e) {
+    console.error('_emval_construct_raw error:', e);
+    return 0;
+  }
+});
+
+EM_JS(EM_VAL, _emval_call_function_raw,
+      (EM_VAL fn,
+       EM_VAL* argv,
+       int argc), {
+  try {
+    var fn = Emval.toValue(fn);
+    var args = new Array(argc);
+    for (var i = 0; i < argc; i++) {
+      args[i] = Emval.toValue(HEAPU32[(argv>>2) + i]);
+    }
+    var ret = fn.apply(undefined, args);
+    return Emval.toHandle(ret);
+  } catch (e) {
+    console.error('_emval_call_function_raw error:', e);
+    return 0;
+  }
+});
 }
