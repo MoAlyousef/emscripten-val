@@ -4,7 +4,6 @@
 #include <emscripten/val.h>
 #include <string.h>
 #include <string>
-#include <cstdint>
 
 using namespace emscripten;
 
@@ -38,7 +37,6 @@ static val func_to_val(std::function<val(T...)> &&func) {
     );
 }
 
-
 extern "C" {
 EM_VAL emscripten_val_rust_caller0(void *data);
 EM_VAL emscripten_val_rust_caller1(EM_VAL em, void *data);
@@ -70,6 +68,38 @@ char *_emval_as_str(EM_VAL object) {
     auto s = strdup(str_val.as<std::string>().c_str());
     v.release_ownership();
     return s;
+}
+
+// If output_buffer is NULL, return the length of the string representation of
+// object. Otherwise, write to output_buffer the string representation of
+// object. If output_buffer is not large enough, undefined behavior occurs.
+uint64_t _emval_as_bytes(EM_VAL object, char *output_buffer) {
+    auto v = val::take_ownership(object);
+    if (v.isNull() || v.isUndefined()) {
+        v.release_ownership();
+        return 0; // Nothing to write
+    }
+
+    std::string buffer;
+    uint64_t len = 0;
+
+    if (v.isString()) {
+        buffer = v.as<std::string>();
+        len    = buffer.size();
+        if (output_buffer) {
+            memcpy(output_buffer, buffer.data(), len);
+        }
+    } else {
+        auto str_val = v.call<val>("toString");
+        buffer       = str_val.as<std::string>();
+        len          = buffer.size();
+        if (output_buffer) {
+            memcpy(output_buffer, buffer.data(), len);
+        }
+    }
+
+    v.release_ownership();
+    return len;
 }
 
 void _emval_add_event_listener(EM_VAL em, const char *name, void *data) {
