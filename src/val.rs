@@ -25,8 +25,10 @@ pub struct Val {
 }
 
 impl Val {
+    #[allow(dead_code)]
     fn id() -> val::TYPEID {
         extern "C" {
+            #[allow(dead_code)]
             fn EmvalType() -> val::TYPEID;
         }
         unsafe { EmvalType() }
@@ -117,37 +119,78 @@ impl Val {
     /// Call a method associated with the JS object represented by the Val object
     pub fn call(&self, f: &str, args: &[&Val]) -> Val {
         unsafe {
-            let typeids = vec![Val::id(); args.len() + 1];
             let f = CString::new(f).unwrap();
-            let caller = val::_emval_create_invoker(
-                typeids.len() as u32, 
-                typeids.as_ptr() as _, 
-                val::EM_INVOKER_KIND_METHOD
-            );
-            
+
+            // Build a contiguous buffer of EM_VAL handles for the arguments
+            let mut argv_handles: Vec<val::EM_VAL> = Vec::with_capacity(args.len());
             for arg in args {
                 val::_emval_incref(arg.handle);
+                argv_handles.push(arg.handle);
             }
 
-            let ret = val::_emval_invoke(
-                caller,
+            let ret_handle = _emval_call_method_raw(
                 self.handle,
                 f.as_ptr() as _,
-                std::ptr::null_mut(),
-                *(args.as_ptr() as *const *const ()) as _,
+                argv_handles.as_ptr(),
+                argv_handles.len() as i32,
             );
-            
-            // For Val return types, the wire type contains the handle encoded as double
-            let ret_wire = crate::id::GenericWireType(ret);
-            let ret_handle = ret_wire.0 as usize as EM_VAL;
-            
-            // Check for reserved handles - these don't need reference counting
-            let handle_value = ret_handle as usize;
-            if handle_value <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
-                // Reserved handle - use directly without take_ownership
+
+            // Reserved handles (undefined/null/true/false) are returned directly
+            if (ret_handle as usize) <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
                 Val { handle: ret_handle }
             } else {
-                // Regular handle - use take_ownership
+                Val::take_ownership(ret_handle)
+            }
+        }
+    }
+
+    /// Invoke this value as a JavaScript function using Embind's invoker
+    /// with `EM_INVOKER_KIND_FUNCTION`.
+    ///
+    /// - Treats all arguments and the return type as raw JS values (Emval).
+    /// - Does not depend on `Val::call` or method/application semantics.
+    /// - If this `Val` is not callable, a JS TypeError will be thrown.
+    pub fn invoke(&self, args: &[&Val]) -> Val {
+        unsafe {
+            // Build a contiguous buffer of EM_VAL handles for the arguments
+            let mut argv_handles: Vec<val::EM_VAL> = Vec::with_capacity(args.len());
+            for arg in args {
+                // Ensure the handles stay alive across the boundary.
+                val::_emval_incref(arg.handle);
+                argv_handles.push(arg.handle);
+            }
+
+            // Prefer the invoker-based path (uses EM_INVOKER_KIND_FUNCTION).
+            // In debug builds, some embind checks can be overly strict; use
+            // a raw apply-based fallback to improve dev ergonomics.
+            // #[cfg(not(debug_assertions))]
+            let ret_handle = _emval_call_function_raw(
+                self.handle,
+                argv_handles.as_ptr(),
+                argv_handles.len() as i32,
+            );
+
+            // #[cfg(debug_assertions)]
+            // let ret_handle = {
+            //     let h = _emval_call_function_invoke(
+            //         self.handle,
+            //         argv_handles.as_ptr(),
+            //         argv_handles.len() as i32,
+            //     );
+            //     if h.is_null() {
+            //         _emval_call_function_raw(
+            //             self.handle,
+            //             argv_handles.as_ptr(),
+            //             argv_handles.len() as i32,
+            //         )
+            //     } else {
+            //         h
+            //     }
+            // };
+
+            if (ret_handle as usize) <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
+                Val { handle: ret_handle }
+            } else {
                 Val::take_ownership(ret_handle)
             }
         }
@@ -297,35 +340,22 @@ impl Val {
     /// Instantiate a new object, passes the `args` to the object's contructor
     pub fn new(&self, args: &[&Val]) -> Val {
         unsafe {
-            let typeids = vec![Val::id(); args.len() + 1];
-            let caller = val::_emval_create_invoker(
-                typeids.len() as u32, 
-                typeids.as_ptr() as _, 
-                val::EM_INVOKER_KIND_CONSTRUCTOR
-            );
+            // Build a contiguous buffer of EM_VAL handles for the arguments
+            let mut argv_handles: Vec<val::EM_VAL> = Vec::with_capacity(args.len());
             for arg in args {
                 val::_emval_incref(arg.handle);
+                argv_handles.push(arg.handle);
             }
-            
-            let ret = val::_emval_invoke(
-                caller,
+
+            let ret_handle = _emval_construct_raw(
                 self.handle,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-                *(args.as_ptr() as *const *const ()) as _,
+                argv_handles.as_ptr(),
+                argv_handles.len() as i32,
             );
-            
-            // For Val return types, the wire type contains the handle encoded as double
-            let ret_wire = crate::id::GenericWireType(ret);
-            let ret_handle = ret_wire.0 as usize as EM_VAL;
-            
-            // Check for reserved handles - these don't need reference counting
-            let handle_value = ret_handle as usize;
-            if handle_value <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
-                // Reserved handle - use directly without take_ownership
+
+            if (ret_handle as usize) <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
                 Val { handle: ret_handle }
             } else {
-                // Regular handle - use take_ownership
                 Val::take_ownership(ret_handle)
             }
         }

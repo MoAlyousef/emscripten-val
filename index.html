@@ -1,11 +1,19 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-    <script src="./target/wasm32-unknown-emscripten/debug/examples/emscripten_funcs.js"></script>
-</body>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Document</title>
+	</head>
+	<body>
+		<script>
+			function dolater(input, callback) {
+				setTimeout(() => {
+					callback("Hello from JS: " + input);
+				}, 1000);
+			}
+		</script>
+        <!-- Put release here! -->
+		<script src="./target/wasm32-unknown-emscripten/release/examples/dolater.js"></script>
+	</body>
 </html>

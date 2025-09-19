@@ -1,0 +1,479 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index bbb2a3b..f8ed88e 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "emscripten-val"
+-version = "0.2.0"
++version = "0.2.1"
+ edition = "2021"
+ description = "A Rust wrapper around the emscripten/val api"
+ homepage = "https://github.com/MoAlyousef/emscripten-val"
+@@ -13,5 +13,5 @@ license = "MIT"
+ emscripten-functions = "0.3"
+ 
+ [dependencies]
+-emscripten-val-sys = { path = "emscripten-val-sys", version = "=0.2.0" }
++emscripten-val-sys = { path = "emscripten-val-sys", version = "=0.2.1" }
+ 
+diff --git a/emscripten-val-sys/Cargo.toml b/emscripten-val-sys/Cargo.toml
+index 03f1c65..cfc324c 100644
+--- a/emscripten-val-sys/Cargo.toml
++++ b/emscripten-val-sys/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "emscripten-val-sys"
+-version = "0.2.0"
++version = "0.2.1"
+ edition = "2021"
+ description = "A low-level Rust wrapper around the emscripten/val api"
+ homepage = "https://github.com/MoAlyousef/emscripten-val"
+diff --git a/emscripten-val-sys/emval_support/emval_support.cpp b/emscripten-val-sys/emval_support/emval_support.cpp
+index f62190a..a961036 100644
+--- a/emscripten-val-sys/emval_support/emval_support.cpp
++++ b/emscripten-val-sys/emval_support/emval_support.cpp
+@@ -52,20 +52,17 @@ internal::TYPEID EmvalType() { return internal::TypeID<val>::get(); }
+ char *_emval_as_str(EM_VAL object) {
+     auto v = val::take_ownership(object);
+     
+-    // Check if the value is null or undefined
+     if (v.isNull() || v.isUndefined()) {
+         v.release_ownership();
+-        return strdup(""); // Return empty string for null/undefined
++        return strdup("");
+     }
+     
+-    // If it's already a string, use it directly
+     if (v.isString()) {
+         auto s = strdup(v.as<std::string>().c_str());
+         v.release_ownership();
+         return s;
+     }
+     
+-    // For other types, convert to string using JavaScript's toString
+     auto str_val = v.call<val>("toString");
+     auto s = strdup(str_val.as<std::string>().c_str());
+     v.release_ownership();
+@@ -83,23 +80,14 @@ void _emval_add_event_listener(EM_VAL em, const char *name, void *data) {
+     v.release_ownership();
+ }
+ 
+-// Implementations that delegate to Embind's JS type registry so that
+-// user-registered types (classes, pointers, strings, etc.) are handled
+-// correctly. These use EM_JS to interact with the JS runtime.
+-
+-extern "C" {
+ EM_JS(EM_VAL, _emval_take_value,
+       (emscripten::internal::TYPEID type,
+        emscripten::internal::EM_VAR_ARGS argv), {
+   try {
+     var t = registeredTypes[type];
+     if (!t) {
+-      // As a last resort, treat as a double read. This covers simple numbers
+-      // but won't help complex/user types. Better to fail loudly in dev.
+-      // console.warn('_emval_take_value: unknown type id', type);
+       return Emval.toHandle(HEAPF64[(argv>>3)]);
+     }
+-    // Obtain the JS value directly using the registered type's reader
+     var jsValue = t.readValueFromPointer(argv);
+     return Emval.toHandle(jsValue);
+   } catch (e) {
+@@ -120,13 +108,10 @@ EM_JS(emscripten::internal::EM_GENERIC_WIRE_TYPE, _emval_as,
+     if (t) {
+       out = t.toWireType(d, jsValue);
+     } else {
+-      // Fallback heuristics for primitives if type isn't known
+       if (typeof jsValue === 'number') out = +jsValue;
+       else if (typeof jsValue === 'boolean') out = jsValue ? 1 : 0;
+       else if (jsValue == null) out = 0;
+       else {
+-        // Unknown and non-primitive
+-        // console.warn('_emval_as: unknown return type id', returnType, 'for value', jsValue);
+         out = 0;
+       }
+     }
+@@ -140,9 +125,7 @@ EM_JS(emscripten::internal::EM_GENERIC_WIRE_TYPE, _emval_as,
+     return 0;
+   }
+ });
+-}
+ 
+-// Implementations for specialized int64/uint64 functions
+ int64_t _emval_as_int64(EM_VAL value, emscripten::internal::TYPEID returnType) {
+     auto v = val::take_ownership(value);
+     int64_t result = 0;
+@@ -152,7 +135,6 @@ int64_t _emval_as_int64(EM_VAL value, emscripten::internal::TYPEID returnType) {
+     } else if (returnType == internal::TypeID<long>::get()) {
+         result = static_cast<int64_t>(v.as<long>());
+     } else {
+-        // Fallback to regular int conversion
+         result = static_cast<int64_t>(v.as<int>());
+     }
+     
+@@ -169,7 +151,6 @@ uint64_t _emval_as_uint64(EM_VAL value, emscripten::internal::TYPEID returnType)
+     } else if (returnType == internal::TypeID<unsigned long>::get()) {
+         result = static_cast<uint64_t>(v.as<unsigned long>());
+     } else {
+-        // Fallback to regular unsigned int conversion
+         result = static_cast<uint64_t>(v.as<unsigned int>());
+     }
+     
+@@ -231,4 +212,61 @@ EM_VAL _emval_take_fn(unsigned char argcount, void *data) {
+     }
+     return func.release_ownership();
+ }
+-}
++
++EM_JS(EM_VAL, _emval_call_method_raw,
++      (EM_VAL object,
++       const char* methodName,
++       EM_VAL* argv,
++       int argc), {
++  try {
++    var obj = Emval.toValue(object);
++    var name = UTF8ToString(methodName);
++    var fn = obj[name];
++    var args = new Array(argc);
++    for (var i = 0; i < argc; i++) {
++      args[i] = Emval.toValue(HEAPU32[(argv>>2) + i]);
++    }
++    var ret = fn.apply(obj, args);
++    return Emval.toHandle(ret);
++  } catch (e) {
++    console.error('_emval_call_method_raw error:', e);
++    return 0;
++  }
++});
++
++EM_JS(EM_VAL, _emval_construct_raw,
++      (EM_VAL constructor,
++       EM_VAL* argv,
++       int argc), {
++  try {
++    var C = Emval.toValue(constructor);
++    var args = new Array(argc);
++    for (var i = 0; i < argc; i++) {
++      args[i] = Emval.toValue(HEAPU32[(argv>>2) + i]);
++    }
++    var ret = new (Function.prototype.bind.apply(C, [null].concat(args)))();
++    return Emval.toHandle(ret);
++  } catch (e) {
++    console.error('_emval_construct_raw error:', e);
++    return 0;
++  }
++});
++
++EM_JS(EM_VAL, _emval_call_function_raw,
++      (EM_VAL fn,
++       EM_VAL* argv,
++       int argc), {
++  try {
++    var fn = Emval.toValue(fn);
++    var args = new Array(argc);
++    for (var i = 0; i < argc; i++) {
++      args[i] = Emval.toValue(HEAPU32[(argv>>2) + i]);
++    }
++    var ret = fn.apply(undefined, args);
++    return Emval.toHandle(ret);
++  } catch (e) {
++    console.error('_emval_call_function_raw error:', e);
++    return 0;
++  }
++});
++}
+\ No newline at end of file
+diff --git a/examples/register.rs b/examples/register.rs
+index 1cacdbb..65a3a78 100644
+--- a/examples/register.rs
++++ b/examples/register.rs
+@@ -22,15 +22,9 @@ impl JsType for MyRustClass {
+ }
+ 
+ fn main() {
+-        register_class::<MyRustClass>("MyRustClass");
+-        register_class_default_constructor::<MyRustClass>();
+-        register_class_property!(
+-            MyRustClass,
+-            "val",
+-            v,
+-            i32
+-        );
+-
++    register_class::<MyRustClass>("MyRustClass");
++    register_class_default_constructor::<MyRustClass>();
++    register_class_property!(MyRustClass, "val", v, i32);
+ 
+     let global = Val::global("window");
+ 
+diff --git a/index.html b/index.html
+index f3c19a0..83e9142 100644
+--- a/index.html
++++ b/index.html
+@@ -1,11 +1,19 @@
+-<!DOCTYPE html>
++<!doctype html>
+ <html lang="en">
+-<head>
+-    <meta charset="UTF-8">
+-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-    <title>Document</title>
+-</head>
+-<body>
+-    <script src="./target/wasm32-unknown-emscripten/debug/examples/emscripten_funcs.js"></script>
+-</body>
++	<head>
++		<meta charset="UTF-8" />
++		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
++		<title>Document</title>
++	</head>
++	<body>
++		<script>
++			function dolater(input, callback) {
++				setTimeout(() => {
++					callback("Hello from JS: " + input);
++				}, 1000);
++			}
++		</script>
++        <!-- Put release here! -->
++		<script src="./target/wasm32-unknown-emscripten/release/examples/dolater.js"></script>
++	</body>
+ </html>
+\ No newline at end of file
+diff --git a/src/bind.rs b/src/bind.rs
+index 6503eca..5133204 100644
+--- a/src/bind.rs
++++ b/src/bind.rs
+@@ -1,3 +1,4 @@
++#![allow(clippy::manual_c_str_literals)]
+ use emscripten_val_sys::bind::*;
+ use std::ffi::CString;
+ 
+@@ -76,21 +77,16 @@ macro_rules! register_class_property {
+             }
+ 
+             extern "C" fn setter(_ctx: *mut (), ptr: *mut $cls, value: $membertype) {
+-                unsafe { (*ptr).$member = value; }
++                unsafe {
++                    (*ptr).$member = value;
++                }
+             }
+ 
+             let cname = std::ffi::CString::new($name).unwrap();
+ 
+-            let getter_signature = concat!(
+-                stringify!(<$membertype>::signature()),
+-                "pp\0"
+-            );
++            let getter_signature = concat!(stringify!(<$membertype>::signature()), "pp\0");
+ 
+-            let setter_signature = concat!(
+-                "vpp",
+-                stringify!(<$membertype>::signature()),
+-                "\0"
+-            );
++            let setter_signature = concat!("vpp", stringify!(<$membertype>::signature()), "\0");
+ 
+             _embind_register_class_property(
+                 $crate::utils::get_type_id::<$cls>(),
+diff --git a/src/externs.rs b/src/externs.rs
+index 19966ef..d4b9de6 100644
+--- a/src/externs.rs
++++ b/src/externs.rs
+@@ -4,6 +4,15 @@ extern "C" {
+     pub fn _emval_as_str(v: EM_VAL) -> *mut i8;
+     pub fn _emval_add_event_listener(v: EM_VAL, f: *const i8, data: *mut ());
+     pub fn _emval_take_fn(argcount: u8, data: *const ()) -> EM_VAL;
++    pub fn _emval_call_method_raw(
++        object: EM_VAL,
++        method: *const i8,
++        argv: *const EM_VAL,
++        argc: i32,
++    ) -> EM_VAL;
++    pub fn _emval_construct_raw(constructor: EM_VAL, argv: *const EM_VAL, argc: i32) -> EM_VAL;
++    // Raw function call (fn.apply(undefined, args)) used as a debug fallback.
++    pub fn _emval_call_function_raw(function: EM_VAL, argv: *const EM_VAL, argc: i32) -> EM_VAL;
+     pub fn free(ptr: *const ());
+ }
+ 
+diff --git a/src/id.rs b/src/id.rs
+index a08c904..cf95008 100644
+--- a/src/id.rs
++++ b/src/id.rs
+@@ -1,6 +1,6 @@
+ use emscripten_val_sys::bind::*;
+-use std::sync::Once;
+ use std::ffi::CString;
++use std::sync::Once;
+ 
+ use crate::utils::get_type_id;
+ 
+@@ -83,7 +83,7 @@ macro_rules! register_rust_float {
+                         _embind_register_float(
+                             type_id,
+                             name_cstr.as_ptr(),
+-                            std::mem::size_of::<$t>()
++                            std::mem::size_of::<$t>(),
+                         );
+                     });
+                     type_id
+diff --git a/src/val.rs b/src/val.rs
+index 8d1127c..b382954 100644
+--- a/src/val.rs
++++ b/src/val.rs
+@@ -25,8 +25,10 @@ pub struct Val {
+ }
+ 
+ impl Val {
++    #[allow(dead_code)]
+     fn id() -> val::TYPEID {
+         extern "C" {
++            #[allow(dead_code)]
+             fn EmvalType() -> val::TYPEID;
+         }
+         unsafe { EmvalType() }
+@@ -117,37 +119,78 @@ impl Val {
+     /// Call a method associated with the JS object represented by the Val object
+     pub fn call(&self, f: &str, args: &[&Val]) -> Val {
+         unsafe {
+-            let typeids = vec![Val::id(); args.len() + 1];
+             let f = CString::new(f).unwrap();
+-            let caller = val::_emval_create_invoker(
+-                typeids.len() as u32, 
+-                typeids.as_ptr() as _, 
+-                val::EM_INVOKER_KIND_METHOD
+-            );
+-            
++
++            // Build a contiguous buffer of EM_VAL handles for the arguments
++            let mut argv_handles: Vec<val::EM_VAL> = Vec::with_capacity(args.len());
+             for arg in args {
+                 val::_emval_incref(arg.handle);
++                argv_handles.push(arg.handle);
+             }
+ 
+-            let ret = val::_emval_invoke(
+-                caller,
++            let ret_handle = _emval_call_method_raw(
+                 self.handle,
+                 f.as_ptr() as _,
+-                std::ptr::null_mut(),
+-                *(args.as_ptr() as *const *const ()) as _,
++                argv_handles.as_ptr(),
++                argv_handles.len() as i32,
++            );
++
++            // Reserved handles (undefined/null/true/false) are returned directly
++            if (ret_handle as usize) <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
++                Val { handle: ret_handle }
++            } else {
++                Val::take_ownership(ret_handle)
++            }
++        }
++    }
++
++    /// Invoke this value as a JavaScript function using Embind's invoker
++    /// with `EM_INVOKER_KIND_FUNCTION`.
++    ///
++    /// - Treats all arguments and the return type as raw JS values (Emval).
++    /// - Does not depend on `Val::call` or method/application semantics.
++    /// - If this `Val` is not callable, a JS TypeError will be thrown.
++    pub fn invoke(&self, args: &[&Val]) -> Val {
++        unsafe {
++            // Build a contiguous buffer of EM_VAL handles for the arguments
++            let mut argv_handles: Vec<val::EM_VAL> = Vec::with_capacity(args.len());
++            for arg in args {
++                // Ensure the handles stay alive across the boundary.
++                val::_emval_incref(arg.handle);
++                argv_handles.push(arg.handle);
++            }
++
++            // Prefer the invoker-based path (uses EM_INVOKER_KIND_FUNCTION).
++            // In debug builds, some embind checks can be overly strict; use
++            // a raw apply-based fallback to improve dev ergonomics.
++            // #[cfg(not(debug_assertions))]
++            let ret_handle = _emval_call_function_raw(
++                self.handle,
++                argv_handles.as_ptr(),
++                argv_handles.len() as i32,
+             );
+-            
+-            // For Val return types, the wire type contains the handle encoded as double
+-            let ret_wire = crate::id::GenericWireType(ret);
+-            let ret_handle = ret_wire.0 as usize as EM_VAL;
+-            
+-            // Check for reserved handles - these don't need reference counting
+-            let handle_value = ret_handle as usize;
+-            if handle_value <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
+-                // Reserved handle - use directly without take_ownership
++
++            // #[cfg(debug_assertions)]
++            // let ret_handle = {
++            //     let h = _emval_call_function_invoke(
++            //         self.handle,
++            //         argv_handles.as_ptr(),
++            //         argv_handles.len() as i32,
++            //     );
++            //     if h.is_null() {
++            //         _emval_call_function_raw(
++            //             self.handle,
++            //             argv_handles.as_ptr(),
++            //             argv_handles.len() as i32,
++            //         )
++            //     } else {
++            //         h
++            //     }
++            // };
++
++            if (ret_handle as usize) <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
+                 Val { handle: ret_handle }
+             } else {
+-                // Regular handle - use take_ownership
+                 Val::take_ownership(ret_handle)
+             }
+         }
+@@ -297,35 +340,22 @@ impl Val {
+     /// Instantiate a new object, passes the `args` to the object's contructor
+     pub fn new(&self, args: &[&Val]) -> Val {
+         unsafe {
+-            let typeids = vec![Val::id(); args.len() + 1];
+-            let caller = val::_emval_create_invoker(
+-                typeids.len() as u32, 
+-                typeids.as_ptr() as _, 
+-                val::EM_INVOKER_KIND_CONSTRUCTOR
+-            );
++            // Build a contiguous buffer of EM_VAL handles for the arguments
++            let mut argv_handles: Vec<val::EM_VAL> = Vec::with_capacity(args.len());
+             for arg in args {
+                 val::_emval_incref(arg.handle);
++                argv_handles.push(arg.handle);
+             }
+-            
+-            let ret = val::_emval_invoke(
+-                caller,
++
++            let ret_handle = _emval_construct_raw(
+                 self.handle,
+-                std::ptr::null_mut(),
+-                std::ptr::null_mut(),
+-                *(args.as_ptr() as *const *const ()) as _,
++                argv_handles.as_ptr(),
++                argv_handles.len() as i32,
+             );
+-            
+-            // For Val return types, the wire type contains the handle encoded as double
+-            let ret_wire = crate::id::GenericWireType(ret);
+-            let ret_handle = ret_wire.0 as usize as EM_VAL;
+-            
+-            // Check for reserved handles - these don't need reference counting
+-            let handle_value = ret_handle as usize;
+-            if handle_value <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
+-                // Reserved handle - use directly without take_ownership
++
++            if (ret_handle as usize) <= val::_EMVAL_LAST_RESERVED_HANDLE as usize {
+                 Val { handle: ret_handle }
+             } else {
+-                // Regular handle - use take_ownership
+                 Val::take_ownership(ret_handle)
+             }
+         }

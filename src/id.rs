@@ -1,6 +1,6 @@
 use emscripten_val_sys::bind::*;
-use std::sync::Once;
 use std::ffi::CString;
+use std::sync::Once;
 
 use crate::utils::get_type_id;
 
@@ -83,7 +83,7 @@ macro_rules! register_rust_float {
                         _embind_register_float(
                             type_id,
                             name_cstr.as_ptr(),
-                            std::mem::size_of::<$t>()
+                            std::mem::size_of::<$t>(),
                         );
                     });
                     type_id

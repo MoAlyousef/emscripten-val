@@ -5,6 +5,15 @@ extern "C" {
     pub fn _emval_as_bytes(v: EM_VAL, output_buffer: *mut u8) -> u64;
     pub fn _emval_add_event_listener(v: EM_VAL, f: *const i8, data: *mut ());
     pub fn _emval_take_fn(argcount: u8, data: *const ()) -> EM_VAL;
+    pub fn _emval_call_method_raw(
+        object: EM_VAL,
+        method: *const i8,
+        argv: *const EM_VAL,
+        argc: i32,
+    ) -> EM_VAL;
+    pub fn _emval_construct_raw(constructor: EM_VAL, argv: *const EM_VAL, argc: i32) -> EM_VAL;
+    // Raw function call (fn.apply(undefined, args)) used as a debug fallback.
+    pub fn _emval_call_function_raw(function: EM_VAL, argv: *const EM_VAL, argc: i32) -> EM_VAL;
     pub fn free(ptr: *const ());
 }
 
