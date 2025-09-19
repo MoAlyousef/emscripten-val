@@ -467,10 +467,10 @@ impl Val {
 
     pub fn as_bytes(&self) -> Vec<u8> {
         unsafe {
-            let ptr = _emval_as_str(self.handle);
-            let ret = CStr::from_ptr(ptr).to_bytes().to_vec();
-            free(ptr as _);
-            ret
+            let len = _emval_as_bytes(self.handle, std::ptr::null_mut()) as usize;
+            let mut output_buffer: Vec<u8> = vec![0; len];
+            let _ = _emval_as_bytes(self.handle, output_buffer.as_mut_ptr());
+            output_buffer
         }
     }
 
